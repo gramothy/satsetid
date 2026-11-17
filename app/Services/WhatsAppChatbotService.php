@@ -62,92 +62,181 @@ class WhatsAppChatbotService
         }, 3);
     }
 
+    /** Words that confirm a registration ("YA") or step back ("BATAL"), matched on the first word. */
+    private const YES = ['ya', 'iya', 'iyaa', 'y', 'yes', 'ok', 'oke', 'okay', 'okey', 'siap', 'setuju', 'lanjut', 'betul', 'benar'];
+
+    private const NO = ['batal', 'tidak', 'tdk', 'gak', 'ga', 'nggak', 'enggak', 'no', 'ubah', 'ganti'];
+
     private function advance(WhatsAppConversation $conversation, string $text): string
     {
-        if (preg_match('/^ANTRE\s+([a-z0-9-]+)$/i', $text, $matches)) {
-            $restaurant = Restaurant::query()->where('slug', $matches[1])->lockForUpdate()->first();
-            if (! $restaurant) {
-                $conversation->fill(['restaurant_id' => null, 'queue_ticket_id' => null, 'party_size' => null, 'state' => 'restaurant_selected', 'expires_at' => null]);
+        // "ANTRE <slug>" (also "antri", any case, trailing punctuation) always starts over.
+        if (preg_match('/^ANTR[EI]\s+([a-z0-9-]+)[\s.!?]*$/i', $text, $matches)) {
+            return $this->start($conversation, mb_strtolower($matches[1]));
+        }
 
-                return 'Outlet tidak ditemukan. Silakan scan ulang QR SatSet di lokasi.';
+        $restaurant = $conversation->restaurant_id ? Restaurant::query()->lockForUpdate()->find($conversation->restaurant_id) : null;
+
+        // A ticket stays reachable by chat for as long as it is active, not only for 30 minutes.
+        if ($conversation->state === 'queue_created' && $conversation->queue_ticket_id) {
+            $ticket = QueueTicket::query()->find($conversation->queue_ticket_id);
+            if ($ticket?->isActive()) {
+                return $this->ticketSummary($ticket, '*Status antrean Anda*');
             }
-            $conversation->fill(['restaurant_id' => $restaurant->id, 'party_size' => null, 'queue_ticket_id' => null,
-                'state' => 'waiting_party_size', 'expires_at' => now()->addMinutes(30)]);
-            if (! $restaurant->active || ! $restaurant->queue_open) {
-                $conversation->state = 'restaurant_selected';
-
-                return "Antrean {$restaurant->name} sedang ditutup. Silakan hubungi staf outlet.";
-            }
-            if ($ticket = $this->queue->findActiveTicketForPhone($restaurant, $conversation->phone_number)) {
-                $conversation->fill(['state' => 'queue_created', 'queue_ticket_id' => $ticket->id]);
-
-                return $this->ticketSummary($ticket, 'Anda sudah memiliki antrean aktif.');
-            }
-            $snapshot = $this->queue->getRestaurantSnapshot($restaurant);
-
-            return "Halo! Anda sedang mendaftar antrean di {$restaurant->name}.\n\nSaat ini ada {$snapshot['active_count']} antrean di depan Anda. Estimasi +/-{$snapshot['estimated_wait']} menit.\n\nBerapa orang yang akan datang? Balas angka 1 sampai {$restaurant->max_party_size}.\nSatu kelompok mendapat satu nomor antrean. Update antrean akan dikirim ke WhatsApp ini.";
         }
 
         if (! $conversation->restaurant_id || ! $conversation->expires_at || $conversation->expires_at->isPast()) {
+            $wasRegistering = in_array($conversation->state, ['waiting_party_size', 'waiting_confirmation'], true);
             $conversation->state = 'restaurant_selected';
+            if ($restaurant && $wasRegistering) {
+                return "Sesi pendaftaran di *{$restaurant->name}* sudah berakhir karena tidak ada balasan selama 30 menit.\n\nKirim *ANTRE {$restaurant->slug}* untuk mulai lagi.";
+            }
 
-            return 'Untuk memulai atau melanjutkan pendaftaran, scan QR outlet dan pilih Lanjut via WhatsApp.';
+            return 'Halo! Untuk mengambil nomor antrean, scan QR SatSet di outlet lalu ketuk *Lanjut via WhatsApp*.';
         }
-        $restaurant = Restaurant::query()->lockForUpdate()->find($conversation->restaurant_id);
         if (! $restaurant) {
-            return 'Outlet tidak tersedia. Silakan scan QR di lokasi.';
+            return 'Maaf, outlet ini sudah tidak tersedia. Silakan scan QR SatSet di outlet.';
         }
         if ($conversation->state === 'queue_created') {
             $ticket = QueueTicket::query()->find($conversation->queue_ticket_id);
 
-            return $ticket ? $this->ticketSummary($ticket, 'Antrean Anda') : 'Silakan scan ulang QR outlet.';
+            return $ticket
+                ? $this->ticketSummary($ticket, '*Status antrean Anda*')
+                : "Kirim *ANTRE {$restaurant->slug}* untuk mengambil nomor antrean baru.";
         }
         if (! $restaurant->active || ! $restaurant->queue_open) {
             $conversation->state = 'restaurant_selected';
 
-            return "Antrean {$restaurant->name} sedang ditutup. Silakan hubungi staf outlet.";
+            return $this->closedMessage($restaurant);
         }
-        if (mb_strtolower($text) === 'batal' || mb_strtolower($text) === 'tidak') {
+
+        $word = $this->firstWord($text);
+        if (in_array($word, self::NO, true)) {
             $conversation->fill(['state' => 'waiting_party_size', 'party_size' => null]);
 
-            return "Pendaftaran belum dibuat. Untuk mulai lagi, balas jumlah tamu 1 sampai {$restaurant->max_party_size}.";
+            return "Baik, nomor antrean belum dibuat.\n\nUntuk berapa orang? Balas dengan {$this->sizeRange($restaurant)}.";
         }
+
         if ($conversation->state === 'waiting_party_size') {
-            if (! ctype_digit($text) || (int) $text < 1 || (int) $text > $restaurant->max_party_size) {
-                return "Jumlah tamu harus 1 sampai {$restaurant->max_party_size} orang. Balas dengan angka.";
+            $size = $this->partySize($text);
+            if ($size === null || $size < 1 || $size > $restaurant->max_party_size) {
+                return "Mohon balas jumlah orang dengan {$this->sizeRange($restaurant)}, misalnya *2*.";
             }
-            $conversation->fill(['party_size' => (int) $text, 'state' => 'waiting_confirmation', 'expires_at' => now()->addMinutes(30)]);
+            $conversation->fill(['party_size' => $size, 'state' => 'waiting_confirmation', 'expires_at' => now()->addMinutes(30)]);
             $snapshot = $this->queue->getRestaurantSnapshot($restaurant);
 
-            return "Konfirmasi antrean:\nRestoran: {$restaurant->name}\nJumlah orang: {$conversation->party_size}\nSaat ini: {$snapshot['active_count']} antrean di depan Anda\nEstimasi: +/-{$snapshot['estimated_wait']} menit\n\nLanjut daftar? Balas YA untuk konfirmasi atau BATAL untuk mengubah jumlah.";
+            return "Mohon periksa kembali:\n\n"
+                ."Outlet: *{$restaurant->name}*\n"
+                ."Jumlah orang: *{$size}*\n"
+                .$this->queueLine($snapshot['active_count'], $snapshot['estimated_wait'])."\n\n"
+                .'Balas *YA* untuk mengambil nomor antrean, atau *BATAL* untuk mengubah jumlah orang.';
         }
+
         if ($conversation->state === 'waiting_confirmation') {
-            if (mb_strtolower($text) !== 'ya') {
-                return 'Balas YA untuk membuat antrean, atau BATAL untuk mengubah jumlah tamu.';
+            if (! in_array($word, self::YES, true)) {
+                return 'Balas *YA* untuk mengambil nomor antrean, atau *BATAL* untuk mengubah jumlah orang.';
             }
             try {
                 $ticket = $this->queue->createTicket($restaurant, phone: $conversation->phone_number, partySize: $conversation->party_size);
             } catch (ValidationException $exception) {
                 $conversation->fill(['state' => 'waiting_party_size', 'party_size' => null]);
 
-                return implode("\n", $exception->validator->errors()->all());
+                return 'Maaf, '.lcfirst(implode(' ', $exception->validator->errors()->all()));
             }
             $conversation->fill(['state' => 'queue_created', 'queue_ticket_id' => $ticket->id]);
 
-            return $this->ticketSummary($ticket, 'Berhasil! Antrean Anda sudah terdaftar.')."\nKami akan menghubungi Anda saat giliran semakin dekat.";
+            return $this->ticketSummary($ticket, '✅ *Berhasil!* Anda sudah masuk antrean.')
+                ."\n\nKami akan mengirim pesan saat giliran Anda sudah dekat.";
         }
 
-        return 'Silakan scan ulang QR outlet untuk memulai pendaftaran.';
+        return "Kirim *ANTRE {$restaurant->slug}* untuk memulai pendaftaran.";
+    }
+
+    private function start(WhatsAppConversation $conversation, string $slug): string
+    {
+        $restaurant = Restaurant::query()->where('slug', $slug)->lockForUpdate()->first();
+        if (! $restaurant) {
+            $conversation->fill(['restaurant_id' => null, 'queue_ticket_id' => null, 'party_size' => null, 'state' => 'restaurant_selected', 'expires_at' => null]);
+
+            return "Maaf, outlet tidak ditemukan.\nSilakan scan ulang QR SatSet yang ada di outlet.";
+        }
+        $conversation->fill(['restaurant_id' => $restaurant->id, 'party_size' => null, 'queue_ticket_id' => null,
+            'state' => 'waiting_party_size', 'expires_at' => now()->addMinutes(30)]);
+        if (! $restaurant->active || ! $restaurant->queue_open) {
+            $conversation->state = 'restaurant_selected';
+
+            return $this->closedMessage($restaurant);
+        }
+        if ($ticket = $this->queue->findActiveTicketForPhone($restaurant, $conversation->phone_number)) {
+            $conversation->fill(['state' => 'queue_created', 'queue_ticket_id' => $ticket->id]);
+
+            return $this->ticketSummary($ticket, 'Anda sudah punya nomor antrean aktif di outlet ini.');
+        }
+        $snapshot = $this->queue->getRestaurantSnapshot($restaurant);
+        $queue = $snapshot['active_count'] > 0
+            ? "Saat ini ada *{$snapshot['active_count']} antrean*, perkiraan tunggu ±{$snapshot['estimated_wait']} menit."
+            : 'Saat ini *belum ada antrean*.';
+
+        return "Halo, selamat datang di *{$restaurant->name}* 👋\n\n{$queue}\n\n"
+            ."Untuk berapa orang? Balas dengan {$this->sizeRange($restaurant)}.\n"
+            .'_Satu kelompok cukup satu nomor antrean._';
+    }
+
+    private function closedMessage(Restaurant $restaurant): string
+    {
+        return "Maaf, antrean di *{$restaurant->name}* sedang ditutup.\nSilakan tanyakan ke petugas outlet.";
+    }
+
+    /** "angka *1 sampai 6*" (or "angka *1*" when the outlet seats one person per number). */
+    private function sizeRange(Restaurant $restaurant): string
+    {
+        return $restaurant->max_party_size > 1 ? "angka *1 sampai {$restaurant->max_party_size}*" : 'angka *1*';
+    }
+
+    /** "2", "02", "2 orang", "2org", "6 orang dewasa"; anything else (2.5, dua, -1) is null. */
+    private function partySize(string $text): ?int
+    {
+        return preg_match('/^(\d{1,2})(?:\s*(?:orang|org|pax|tamu|org\.)\b.*)?$/iu', trim($text), $matches) ? (int) $matches[1] : null;
+    }
+
+    /** First word in lower case, without punctuation or emoji ("Ya!" -> "ya", "batal dong" -> "batal"). */
+    private function firstWord(string $text): string
+    {
+        return preg_match('/\p{L}+/u', $text, $matches) ? mb_strtolower($matches[0]) : '';
+    }
+
+    private function queueLine(int $ahead, int $minutes): string
+    {
+        return $ahead > 0
+            ? "Antrean di depan: *{$ahead}*\nPerkiraan tunggu: ±{$minutes} menit"
+            : 'Antrean di depan: *belum ada*';
     }
 
     private function ticketSummary(QueueTicket $ticket, string $heading): string
     {
         $ticket->loadMissing('restaurant');
-        $ahead = max(0, $this->queue->calculateCustomerPosition($ticket) - 1);
-        $estimate = $this->queue->calculateEstimatedWait($ticket->restaurant, $ticket);
         // Built from APP_URL, not the webhook request host: behind a tunnel or proxy that host is not reachable by customers.
         $url = rtrim(config('app.url'), '/').route('queue.show', ['ticket' => $ticket->public_token], false);
 
-        return "{$heading}\n\n{$ticket->restaurant->name}\nNomor: {$ticket->queue_number}\nJumlah tamu: {$ticket->party_size} orang\nStatus: {$ticket->statusLabel()}\n{$ahead} antrean di depan Anda\nEstimasi: +/-{$estimate} menit\n\nLihat antrean: {$url}";
+        $lines = [
+            $heading,
+            '',
+            "Nomor antrean: *{$ticket->queue_number}*",
+            "Outlet: {$ticket->restaurant->name}",
+            "Jumlah orang: {$ticket->party_size}",
+        ];
+        if ($ticket->status === QueueTicket::STATUS_WAITING) {
+            $ahead = max(0, $this->queue->calculateCustomerPosition($ticket) - 1);
+            $lines[] = $ahead > 0
+                ? "Di depan Anda: *{$ahead} antrean*\nPerkiraan tunggu: ±".$this->queue->estimatedWaitForAhead($ticket->restaurant, $ahead).' menit'
+                : 'Di depan Anda: *tidak ada*, Anda berikutnya.';
+        } elseif ($ticket->status === QueueTicket::STATUS_CALLED) {
+            $lines[] = 'Status: *Dipanggil*. Silakan menuju outlet sekarang.';
+        } else {
+            $lines[] = "Status: {$ticket->statusLabel()}";
+        }
+        $lines[] = '';
+        $lines[] = "Pantau antrean: {$url}";
+
+        return implode("\n", $lines);
     }
 }

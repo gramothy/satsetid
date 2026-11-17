@@ -1,6 +1,6 @@
 @php
-    $statusLabels = ['received' => 'Diterima', 'pending' => 'Menunggu kirim', 'sending' => 'Mengirim', 'sent' => 'Terkirim', 'delivered' => 'Sampai', 'read' => 'Dibaca', 'failed' => 'Gagal'];
-    $statusColors = ['received' => 'grey', 'pending' => 'amber', 'sending' => 'amber', 'sent' => 'green', 'delivered' => 'green', 'read' => 'green', 'failed' => 'red'];
+    $statusLabels = ['received' => 'Diterima', 'pending' => 'Menunggu kirim', 'sending' => 'Mengirim', 'sent' => 'Terkirim', 'delivered' => 'Sampai', 'read' => 'Dibaca', 'failed' => 'Gagal', 'skipped' => 'Tidak dikirim'];
+    $statusColors = ['received' => 'grey', 'pending' => 'amber', 'sending' => 'amber', 'sent' => 'green', 'delivered' => 'green', 'read' => 'green', 'failed' => 'red', 'skipped' => 'grey'];
 @endphp
 <x-layouts.admin title="Log WhatsApp | SatSet Admin">
     <header class="admin-page-header">
@@ -55,8 +55,18 @@
                                 </details>
                             </td>
                             <td>
-                                <span class="admin-badge admin-badge-{{ $statusColors[$log->status] ?? 'grey' }}">{{ $statusLabels[$log->status] ?? $log->status }}</span>
-                                @if($log->error_code)<span class="admin-sub">{{ $log->error_code }}</span>@endif
+                                <span class="admin-badge admin-badge-{{ $log->isStuckSending() ? 'red' : ($statusColors[$log->status] ?? 'grey') }}">{{ $log->isStuckSending() ? 'Macet' : ($statusLabels[$log->status] ?? $log->status) }}</span>
+                                @if($description = $log->errorDescription())
+                                    <span class="admin-sub" title="{{ $log->error_code }}">{{ $description }}</span>
+                                @elseif($log->error_code)
+                                    <span class="admin-sub">{{ $log->error_code }}</span>
+                                @endif
+                                @if($log->canRetry())
+                                    <form method="post" action="{{ route('admin.whatsapp-logs.retry', $log) }}" class="admin-log-retry" onsubmit="return confirm('Kirim ulang pesan ini? Cek dulu di WhatsApp HP outlet bahwa customer belum menerimanya, supaya tidak dobel.')">
+                                        @csrf
+                                        <button class="admin-button admin-button-small admin-button-ghost" type="submit">Kirim ulang</button>
+                                    </form>
+                                @endif
                             </td>
                         </tr>
                     @empty

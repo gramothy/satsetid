@@ -249,6 +249,15 @@ class WhatsAppService
 
     public function deliver(WhatsappLog $message): bool
     {
+        // A queue notice that waited out an outage ("tinggal 3" for a ticket already served) is no longer
+        // true: drop it instead of confusing the customer, and keep the record as "skipped".
+        if ($this->isStaleNotification($message)) {
+            WhatsappLog::query()->whereKey($message->id)->where('status', 'pending')
+                ->update(['status' => 'skipped', 'error_code' => 'stale_notification', 'updated_at' => now()]);
+
+            return false;
+        }
+
         if ($this->provider() === 'baileys') {
             return $this->deliverViaBaileys($message);
         }
@@ -484,6 +493,25 @@ class WhatsAppService
         $error = is_string($error) ? substr(preg_replace('/[^a-z0-9_]+/', '', strtolower($error)) ?? '', 0, 40) : '';
 
         return 'http_'.$response->status().($error !== '' ? '_'.$error : '');
+    }
+
+    /**
+     * Position notices only make sense while the ticket waits, "giliran tiba" only while it is called.
+     */
+    private function isStaleNotification(WhatsappLog $message): bool
+    {
+        $required = match ($message->notification_field) {
+            'three_ahead_notified_at', 'one_ahead_notified_at' => QueueTicket::STATUS_WAITING,
+            'called_notified_at' => QueueTicket::STATUS_CALLED,
+            default => null,
+        };
+        if ($required === null || ! $message->queue_ticket_id) {
+            return false;
+        }
+
+        $status = QueueTicket::query()->whereKey($message->queue_ticket_id)->value('status');
+
+        return $status !== null && $status !== $required;
     }
 
     /**

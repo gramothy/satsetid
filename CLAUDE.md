@@ -39,7 +39,7 @@ Laravel menyimpan state gateway di cache `whatsapp:baileys:session` selama 30 de
 
 ## Pemantauan
 
-`whatsapp:monitor` (setiap menit) memakai `WhatsAppMonitor::problems()` dan mengirim email `WhatsAppAlert` ke semua pemilik aktif saat masalah muncul, pengingat paling sering sekali per jam (event `failed/`: sekali sehari), dan satu email saat pulih. Masalah: sesi `logged_out`/token salah (langsung), gateway tidak `open` lebih dari 3 menit, pesan `pending` lebih dari 10 menit, 5+ pesan `failed` dalam 60 menit (kecuali `not_opted_in`), `webhook_backlog` ≥ 10, `webhook_failed` > 0. Dashboard pemilik menampilkan masalah yang sama dan peringatan bila monitor tidak berjalan lebih dari 5 menit (heartbeat di cache). Tidak aktif bila `WHATSAPP_ENABLED=false`. Isi peringatan tidak boleh memuat isi pesan, nomor HP, atau kredensial.
+`whatsapp:monitor` (setiap menit) memakai `WhatsAppMonitor::problems()` dan mengirim email `WhatsAppAlert` ke semua pemilik aktif saat masalah muncul, pengingat paling sering sekali per jam (event `failed/`: sekali sehari), dan satu email saat pulih. Masalah: sesi `logged_out`/token salah (langsung), gateway tidak `open` lebih dari 3 menit, pesan `pending` lebih dari 10 menit, pesan `sending` lebih dari 2 menit (`stuck`, worker mati saat mengirim), 5+ pesan `failed` dalam 60 menit (kecuali `not_opted_in`), `webhook_backlog` ≥ 10, `webhook_failed` > 0. Dashboard pemilik menampilkan masalah yang sama dan peringatan bila monitor tidak berjalan lebih dari 5 menit (heartbeat di cache). Tidak aktif bila `WHATSAPP_ENABLED=false`. Isi peringatan tidak boleh memuat isi pesan, nomor HP, atau kredensial.
 
 ## Peran admin
 
@@ -64,6 +64,9 @@ Laravel menyimpan state gateway di cache `whatsapp:baileys:session` selama 30 de
   - **Pacing**: gateway mengirim satu per satu (antrean FIFO, satu pengirim) dengan jeda acak `WA_MIN_DELAY_MS`–`WA_MAX_DELAY_MS` (bawaan 3–8 detik, maksimal 15 detik).
   - **Batas harian**: `WA_DAILY_CAP` (bawaan 200) dihitung per hari WIB, disimpan di `auth_info/` supaya tidak ter-reset saat gateway dijalankan ulang.
   - Tidak ada endpoint atau fitur pesan massal/promosi. Jangan menambahkannya.
+- Sebelum mengirim, `WhatsAppService::deliver()` membuang notifikasi yang sudah tidak berlaku (tinggal 3/1 untuk tiket yang tidak lagi `waiting`, dipanggil untuk tiket yang tidak lagi `called`): status `skipped` dengan `stale_notification`, penanda `*_notified_at` tidak diisi.
+- `whatsapp:send-pending` memakai `foreach`, bukan `Collection::each()`, karena `deliver()` mengembalikan `false` untuk pesan yang tidak terkirim dan `each()` berhenti di situ.
+- Tombol **Kirim ulang** (`POST /admin/whatsapp-logs/{log}/retry`, khusus pemilik) hanya untuk pesan keluar `failed` (kecuali `not_opted_in`) atau `sending` lebih dari 2 menit (`WhatsappLog::canRetry()`); mengembalikan ke `pending` dengan `attempts` 0. Tidak pernah otomatis.
 - Gateway Baileys tidak `open` (mati, menunggu QR, reconnect): pesan tetap `pending` tanpa menambah `attempts`, dan dikirim ulang saat webhook `session: open` masuk (`dispatchPending()`). 429/503/5xx/koneksi ditolak/401 (token salah): tetap `pending` dengan `gateway_unavailable`, maksimal 5 percobaan lalu `failed`; 503 `not_connected` dan 401 juga menandai gateway tidak siap di cache supaya pesan berikutnya tidak menghabiskan percobaan. Timeout setelah request sampai ke gateway: `failed` dengan `ambiguous_timeout`, tidak pernah dikirim ulang otomatis (review manual).
 - Pesan dari JID `@lid` memakai `key.remoteJidAlt`; kalau tidak ada, pesan dibuang dan hanya ID-nya yang dicatat. Gateway hanya memproses `messages.upsert` bertipe `notify` (bukan riwayat), mengabaikan pesan sendiri, grup, status, dan non-teks.
 - Notifikasi posisi memakai ambang `<=` (tinggal 3: ≤ 3 di depan; tinggal 1: ≤ 1) supaya tidak terlewat saat posisi melompat; penanda `*_notified_at` dan `event_key` membuat tiap notifikasi terkirim sekali. Bila dua ambang terlewati sekaligus, hanya "tinggal 1" yang dikirim. Tiket yang mendaftar sudah di dalam ambang langsung diberi penanda saat dibuat (`QueueService::createTicket`), karena konfirmasi pendaftaran sudah menyebut jumlah antrean di depan. Posisi dihitung di memori dari satu query.
@@ -76,6 +79,7 @@ Laravel menyimpan state gateway di cache `whatsapp:baileys:session` selama 30 de
 
 ```
 APP_URL=                     # alamat publik (tunnel/domain); dipakai untuk QR dan link WhatsApp
+APP_TIMEZONE=Asia/Jakarta    # WIB; jam di UI, log admin, dan batas harian
 SATSET_WEB_SIGNUP=false      # true = daftar lewat form web
 WHATSAPP_ENABLED=false
 WHATSAPP_PROVIDER=baileys    # baileys (default) | meta | twilio | greenapi
@@ -105,6 +109,8 @@ Jangan pernah commit `.env`, `wa-gateway/.env`, `wa-gateway/auth_info/` (sesi Wh
 
 ## Konvensi
 
+- Zona waktu aplikasi `APP_TIMEZONE` (bawaan `Asia/Jakarta`); semua jam di UI dan batas harian memakai WIB.
+- Pesan bot ke customer: Bahasa Indonesia formal (Anda), format WhatsApp (`*tebal*` untuk nomor antrean, nama outlet, dan instruksi; `_miring_` untuk catatan), maksimal satu emoji di judul, kalimat pendek, satu instruksi jelas per pesan. Chatbot menerima variasi input (`ANTRI`, huruf besar, tanda baca, `2 orang`, `iya`/`ok`/`siap`, `batal`/`tidak`/`ubah`); daftar ada di `WhatsAppChatbotService::YES`/`NO`. Customer yang dilewati (`skipCurrent`) mendapat notifikasi `skipped`.
 - Semua teks UI dalam Bahasa Indonesia. Label status tiket diambil dari `QueueTicket::STATUS_LABELS`.
 - Warna dan ukuran didefinisikan sebagai token di `:root` pada `public/css/satset.css` (customer) dan `public/css/admin.css` (admin). Warna brand `#2e6d6d`.
 - Setelah mengubah CSS/JS, naikkan query versi (`?v=ui-N`) di layout supaya cache browser diperbarui.
@@ -119,7 +125,7 @@ Diurutkan kira-kira dari yang paling penting.
 2. **Threshold notifikasi di-hardcode** (3 dan 1). Jadikan kolom per restoran, misalnya `notify_threshold`.
 3. **Nomor antrean tidak pernah di-reset.** Sequence dihitung per restoran sepanjang masa; seharusnya per `(restaurant_id, service_date)`.
 4. **Tombol reset antrean harian** di halaman admin.
-5. **Perintah chatbot setelah tiket dibuat**: `STATUS`/`CEK`, dan `BATAL` dengan konfirmasi. Saat ini pesan apa pun setelah tiket dibuat hanya dibalas ringkasan tiket.
+5. **Pembatalan lewat chatbot**: `BATAL` dengan konfirmasi setelah tiket dibuat. Saat ini pesan apa pun setelah tiket dibuat dibalas status antrean terbaru (juga lewat dari 30 menit), dan pembatalan lewat link tiket.
 6. **Tiket web → WhatsApp**: menghubungkan tiket dari form web ke WhatsApp lewat kode acak sekali pakai (alfabet tanpa 0/O/1/I), supaya customer web juga bisa menerima notifikasi.
 7. **Privasi (UU PDP)**: anonimkan nomor HP dan isi pesan N hari setelah tiket selesai (scheduled command), dan tampilkan pemberitahuan singkat di halaman pendaftaran.
 8. ~~**Efisiensi notifikasi**~~ **Selesai**: `notifyWaitingPositions` mengambil tiket aktif dengan satu query dan menghitung posisi di memori.

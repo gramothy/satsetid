@@ -103,6 +103,7 @@ h1, h2, h3, p { margin: 0; }
 .admin-log-table td:first-child { min-width: 0; }
 .admin-log-cell { min-width: 240px; max-width: 420px; }
 .admin-log-message summary { cursor: pointer; overflow-wrap: anywhere; }
+.admin-log-retry { margin-top: 6px; }
 .admin-log-message p { margin-top: 8px; padding: 10px 12px; border-radius: 8px; background: var(--bg); font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 /* Badges */

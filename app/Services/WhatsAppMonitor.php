@@ -72,6 +72,15 @@ class WhatsAppMonitor
             );
         }
 
+        // A delivery job takes at most 45 seconds; longer in "sending" means the worker died mid-send.
+        $stuck = WhatsappLog::query()->where('direction', 'outbound')->where('status', 'sending')
+            ->where('updated_at', '<=', now()->subMinutes(WhatsappLog::STUCK_SENDING_MINUTES))->count();
+        if ($stuck > 0) {
+            $problems['stuck'] = $this->problem(
+                "{$stuck} pesan WhatsApp macet di status Mengirim (worker berhenti saat mengirim). Cek di HP outlet, lalu pakai tombol Kirim ulang di Admin → Log WhatsApp jika customer belum menerimanya."
+            );
+        }
+
         $failed = WhatsappLog::query()->where('direction', 'outbound')->where('status', 'failed')
             ->where(fn ($query) => $query->whereNull('error_code')->orWhere('error_code', '!=', 'not_opted_in'))
             ->where('updated_at', '>=', now()->subMinutes(self::FAILED_WINDOW_MINUTES))->count();

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\QueueTicket;
-use App\Models\Restaurant;
 use App\Services\QueueService;
 use Illuminate\Http\Request;
 
@@ -13,7 +12,7 @@ class QueueController extends Controller
     {
         $ticket->load('restaurant');
         $position = $queueService->calculateCustomerPosition($ticket);
-        $estimatedWait = $queueService->calculateEstimatedWait($ticket->restaurant, $ticket);
+        $estimatedWait = $queueService->estimatedWaitForAhead($ticket->restaurant, $position - 1);
 
         return response()->view('queue.show', compact('ticket', 'position', 'estimatedWait'))
             ->header('Cache-Control', 'private, no-store')->header('Referrer-Policy', 'no-referrer');
@@ -24,13 +23,14 @@ class QueueController extends Controller
         // Background polling must not consume a flash message meant for the next page.
         $request->session()->reflash();
         $ticket->load('restaurant');
+        // Polled every 10 seconds per open ticket page: the position is counted once.
         $position = $queueService->calculateCustomerPosition($ticket);
 
         return response()->json([
             'status' => $ticket->status,
             'position' => $position,
             'people_before' => max($position - 1, 0),
-            'estimated_wait' => $queueService->calculateEstimatedWait($ticket->restaurant, $ticket),
+            'estimated_wait' => $queueService->estimatedWaitForAhead($ticket->restaurant, $position - 1),
         ])->header('Cache-Control', 'private, no-store');
     }
 

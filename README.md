@@ -267,6 +267,10 @@ Sesi tersimpan di `wa-gateway/auth_info/` (sudah di-*ignore* Git; jangan dibagik
 
 Dari HP dengan nomor **lain**, kirim `ANTRE <slug-outlet>` ke nomor outlet (atau scan QR outlet lalu klik **Lanjut via WhatsApp**). Bot membalas, lalu balas jumlah tamu dan `YA`. Semua pesan masuk dan keluar terlihat di **Admin → Log WhatsApp**.
 
+Bot memahami jawaban yang biasa diketik orang: `antre slug` / `ANTRI slug` (huruf besar-kecil dan tanda baca di akhir diabaikan), jumlah tamu seperti `2`, `2 orang`, atau `3 org`, konfirmasi `ya`, `iya`, `ok`, `oke`, `siap`, dan pembatalan `batal`, `tidak`, `ubah`. Setelah tiket dibuat, pesan apa pun dibalas status antrean terbaru (posisi, perkiraan tunggu, link tiket), kapan pun selama tiket masih aktif.
+
+Pesan ke customer memakai format WhatsApp (`*tebal*` untuk nomor antrean dan hal penting), maksimal satu emoji per pesan, dan dibuat singkat supaya terbaca sekilas. Customer menerima: balasan pendaftaran, **tinggal 3 antrean**, **tinggal 1 antrean / Anda berikutnya**, **giliran tiba**, **dilewati** (dipanggil tetapi tidak hadir), dan **dibatalkan**.
+
 ### 8. (Opsional) Link tiket untuk customer di jaringan lain
 
 Balasan bot berisi link tiket yang dibangun dari `APP_URL`. Supaya link itu bisa dibuka dari data seluler, buat alamat publik dengan Cloudflare Tunnel:
@@ -285,7 +289,9 @@ Isi alamat `https://….trycloudflare.com` ke `APP_URL`, lalu jalankan `php arti
 
 - Pesan keluar tetap **Menunggu kirim** tanpa menghabiskan jatah percobaan, lalu terkirim otomatis begitu gateway tersambung lagi.
 - Kalau gateway menolak sementara (batas harian tercapai atau sedang sibuk), Laravel mencoba lagi sampai 5 kali (setiap menit lewat `schedule:work`), lalu menandai **Gagal** (`gateway_unavailable`).
-- Kalau koneksi putus **setelah** gateway sempat menerima pesan, pesan ditandai **Gagal** (`ambiguous_timeout`) dan **tidak** dikirim ulang otomatis supaya customer tidak menerima pesan ganda. Periksa manual di Log WhatsApp.
+- Kalau koneksi putus **setelah** gateway sempat menerima pesan, pesan ditandai **Gagal** (`ambiguous_timeout`) dan **tidak** dikirim ulang otomatis supaya customer tidak menerima pesan ganda. Cek di WhatsApp HP outlet apakah pesan itu sudah terkirim; kalau belum, klik **Kirim ulang** di **Admin → Log WhatsApp** (khusus pemilik).
+- Kalau `queue:work` mati di tengah pengiriman, pesan tertahan di **Mengirim** dan diberi tanda **Macet** setelah 2 menit. Tombol **Kirim ulang** juga tersedia untuk pesan ini.
+- Notifikasi yang sudah tidak berlaku saat akhirnya akan dikirim (misalnya "tinggal 3 antrean" untuk tiket yang sudah dilayani karena gateway mati lama) **tidak** dikirim, dan tercatat **Tidak dikirim** (`stale_notification`).
 - Log Laravel dan log wa-gateway tidak mencatat token, secret, maupun isi pesan.
 
 ### Kalau Laravel mati
@@ -306,6 +312,7 @@ Pesan customer yang masuk saat Laravel mati, sedang restart, atau dalam mode mai
 | Gateway tidak berjalan, menyambung ulang, atau menunggu scan QR | Setelah 3 menit berturut-turut |
 | Pesan keluar menunggu kirim lebih dari 10 menit | Langsung (tanda `queue:work` atau gateway mati) |
 | 5 pesan gagal atau lebih dalam 60 menit (di luar `not_opted_in`) | Langsung |
+| Pesan tertahan di status Mengirim lebih dari 2 menit (worker berhenti saat mengirim) | Langsung |
 | Gateway menahan 10 event atau lebih yang belum diterima Laravel | Langsung |
 | Ada event di `wa-gateway/data/webhook-queue/failed/` | Langsung, pengingat sekali sehari |
 
@@ -380,4 +387,7 @@ Keduanya juga dijalankan otomatis oleh GitHub Actions (`.github/workflows/tests.
 | Email peringatan tidak sampai | `MAIL_MAILER` masih `log` (email ada di `storage/logs/laravel.log`), atau pengaturan SMTP salah |
 | Peringatan "event dari wa-gateway disisihkan" | Periksa file di `wa-gateway/data/webhook-queue/failed/`, perbaiki penyebabnya, lalu `npm run webhooks:replay` dan jalankan ulang gateway |
 | Log WhatsApp: gagal `not_opted_in` | Nomor itu belum pernah chat ke bot. Sesuai desain, Baileys hanya mengirim ke nomor yang chat lebih dulu |
+| Log WhatsApp: **Tidak dikirim** (`stale_notification`) | Normal. Notifikasi itu sudah tidak berlaku (tiket sudah dipanggil, selesai, atau batal) saat gateway tersambung lagi |
+| Log WhatsApp: tanda **Macet** | `queue:work` berhenti saat mengirim. Cek di HP outlet; kalau customer belum menerima, klik **Kirim ulang** |
+| Jam di admin atau log meleset 7 jam | Aplikasi memakai WIB (`APP_TIMEZONE=Asia/Jakarta`). Data lama yang dibuat saat zona waktu masih UTC tampil 7 jam lebih awal |
 | Webhook Twilio mendapat 403 (provider lama) | `APP_URL` tidak sama dengan alamat tunnel, atau `config:clear` belum dijalankan |

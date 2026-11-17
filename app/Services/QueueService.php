@@ -24,7 +24,15 @@ class QueueService
             ? max($this->calculateCustomerPosition($ticket) - 1, 0)
             : $this->getActiveQueueCount($restaurant);
 
-        return $peopleAhead * $restaurant->average_service_minutes;
+        return $this->estimatedWaitForAhead($restaurant, $peopleAhead);
+    }
+
+    /**
+     * Minutes to wait with this many groups ahead, when the position is already known (saves a query).
+     */
+    public function estimatedWaitForAhead(Restaurant $restaurant, int $groupsAhead): int
+    {
+        return max(0, $groupsAhead) * $restaurant->average_service_minutes;
     }
 
     public function calculateCustomerPosition(QueueTicket $ticket): int
@@ -61,14 +69,24 @@ class QueueService
         };
     }
 
+    /**
+     * Polled by every open outlet page, so it runs two queries: counts per status, and the number being served.
+     */
     public function getRestaurantSnapshot(Restaurant $restaurant): array
     {
-        $estimatedWait = $this->calculateEstimatedWait($restaurant);
+        $counts = $restaurant->queueTickets()
+            ->whereIn('status', [QueueTicket::STATUS_WAITING, QueueTicket::STATUS_CALLED])
+            ->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status');
+        $waiting = (int) ($counts[QueueTicket::STATUS_WAITING] ?? 0);
+        $active = $waiting + (int) ($counts[QueueTicket::STATUS_CALLED] ?? 0);
+        $estimatedWait = $this->estimatedWaitForAhead($restaurant, $active);
 
         return [
-            'active_count' => $this->getActiveQueueCount($restaurant),
-            'waiting_count' => $restaurant->queueTickets()->where('status', QueueTicket::STATUS_WAITING)->count(),
-            'current_number' => $restaurant->queueTickets()->where('status', QueueTicket::STATUS_CALLED)->value('queue_number'),
+            'active_count' => $active,
+            'waiting_count' => $waiting,
+            'current_number' => $active > $waiting
+                ? $restaurant->queueTickets()->where('status', QueueTicket::STATUS_CALLED)->value('queue_number')
+                : null,
             'estimated_wait' => $estimatedWait,
             'status' => $this->getRestaurantStatus($estimatedWait),
             'available' => $restaurant->active && $restaurant->queue_open,
@@ -158,7 +176,7 @@ class QueueService
 
     public function skipCurrent(Restaurant $restaurant): ?QueueTicket
     {
-        return $this->transitionCurrent($restaurant, QueueTicket::STATUS_SKIPPED, 'completed_at');
+        return $this->transitionCurrent($restaurant, QueueTicket::STATUS_SKIPPED, 'completed_at', 'skipped');
     }
 
     public function cancelTicket(QueueTicket $ticket): QueueTicket
@@ -191,7 +209,7 @@ class QueueService
         return str_starts_with($digits, '0') ? '62'.substr($digits, 1) : $digits;
     }
 
-    private function transitionCurrent(Restaurant $restaurant, string $status, string $timestampColumn): ?QueueTicket
+    private function transitionCurrent(Restaurant $restaurant, string $status, string $timestampColumn, ?string $event = null): ?QueueTicket
     {
         $ticket = DB::transaction(function () use ($restaurant, $status, $timestampColumn): ?QueueTicket {
             Restaurant::query()->whereKey($restaurant->id)->lockForUpdate()->firstOrFail();
@@ -214,7 +232,7 @@ class QueueService
         });
 
         if ($ticket) {
-            $this->afterChange($restaurant);
+            $this->afterChange($restaurant, $ticket, $event);
         }
 
         return $ticket;
@@ -228,6 +246,8 @@ class QueueService
                 $notifications->notifyCalled($ticket);
             } elseif ($event === 'cancelled') {
                 $notifications->notifyCancelled($ticket);
+            } elseif ($event === 'skipped') {
+                $notifications->notifySkipped($ticket);
             }
             $notifications->notifyWaitingPositions($restaurant, $this);
             app(WhatsAppService::class)->dispatchPending();
