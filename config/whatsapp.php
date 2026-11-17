@@ -2,9 +2,9 @@
 
 return [
     'enabled' => (bool) env('WHATSAPP_ENABLED', false),
-    // "meta" (WhatsApp Cloud API) or "twilio" (Twilio WhatsApp API).
+    // "meta" (WhatsApp Cloud API), "twilio" (Twilio WhatsApp API) or "greenapi" (GREEN-API, unofficial linked device).
     'provider' => env('WHATSAPP_PROVIDER', 'meta'),
-    // Public WhatsApp number customers chat with. With Twilio this is also the sender ("From") number.
+    // Public WhatsApp number customers chat with. With Twilio/GREEN-API this is also the sender number.
     'phone_number' => env('WHATSAPP_PHONE_NUMBER'),
 
     // Meta Cloud API
@@ -19,6 +19,15 @@ return [
     'twilio' => [
         'account_sid' => env('TWILIO_ACCOUNT_SID'),
         'auth_token' => env('TWILIO_AUTH_TOKEN'),
+    ],
+
+    // GREEN-API: apiUrl, idInstance and apiTokenInstance from the console. The webhook token is
+    // our own secret, entered as webhookUrlToken in the instance settings.
+    'greenapi' => [
+        'api_url' => env('GREENAPI_API_URL'),
+        'id_instance' => env('GREENAPI_ID_INSTANCE'),
+        'api_token' => env('GREENAPI_API_TOKEN'),
+        'webhook_token' => env('GREENAPI_WEBHOOK_TOKEN'),
     ],
 
     // Meta: approved template names. Twilio: approved Content SIDs (HX...).

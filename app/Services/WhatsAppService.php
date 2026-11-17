@@ -15,13 +15,33 @@ class WhatsAppService
 {
     public function provider(): string
     {
-        return config('whatsapp.provider') === 'twilio' ? 'twilio' : 'meta';
+        return match (config('whatsapp.provider')) {
+            'twilio' => 'twilio',
+            'greenapi' => 'greenapi',
+            default => 'meta',
+        };
+    }
+
+    /**
+     * Official APIs only allow free-form text within 24 hours of the customer's last message.
+     */
+    public function hasSessionWindow(): bool
+    {
+        return $this->provider() !== 'greenapi';
     }
 
     public function ready(): bool
     {
         if (! config('whatsapp.enabled')) {
             return false;
+        }
+
+        if ($this->provider() === 'greenapi') {
+            return (bool) preg_match('#^https://[a-z0-9.-]+/?$#i', (string) config('whatsapp.greenapi.api_url'))
+                && preg_match('/^\d+$/', (string) config('whatsapp.greenapi.id_instance'))
+                && filled(config('whatsapp.greenapi.api_token'))
+                && filled(config('whatsapp.greenapi.webhook_token'))
+                && preg_match('/^[1-9]\d{7,14}$/', $this->publicNumber());
         }
 
         if ($this->provider() === 'twilio') {
@@ -132,7 +152,7 @@ class WhatsAppService
             }
 
             $payload = $message->payload;
-            if (($payload['type'] ?? null) === 'text') {
+            if (($payload['type'] ?? null) === 'text' && $this->hasSessionWindow()) {
                 $recentContact = \App\Models\WhatsAppConversation::query()
                     ->where('phone_number', $message->phone_number)
                     ->where('last_message_at', '>', now()->subHours(24))->exists();
@@ -144,6 +164,9 @@ class WhatsAppService
             if ($this->provider() === 'twilio') {
                 $response = $this->postToTwilio($message->phone_number, $payload);
                 $providerId = $response->json('sid');
+            } elseif ($this->provider() === 'greenapi') {
+                $response = $this->postToGreenApi($message->phone_number, $payload['text']['body'] ?? $message->message);
+                $providerId = $response->json('idMessage');
             } else {
                 $response = Http::withToken(config('whatsapp.access_token'))
                     ->acceptJson()->connectTimeout(3)->timeout(8)
@@ -207,6 +230,23 @@ class WhatsAppService
         return Http::withBasicAuth($sid, (string) config('whatsapp.twilio.auth_token'))
             ->asForm()->acceptJson()->connectTimeout(3)->timeout(8)
             ->post('https://api.twilio.com/2010-04-01/Accounts/'.$sid.'/Messages.json', $params);
+    }
+
+    /**
+     * GREEN-API has no templates; template payloads fall back to their stored summary text.
+     */
+    private function postToGreenApi(string $to, string $text): Response
+    {
+        // The token is part of the URL, so this URL must never be logged.
+        $url = rtrim((string) config('whatsapp.greenapi.api_url'), '/')
+            .'/waInstance'.config('whatsapp.greenapi.id_instance')
+            .'/sendMessage/'.config('whatsapp.greenapi.api_token');
+
+        return Http::acceptJson()->connectTimeout(3)->timeout(8)->post($url, [
+            'chatId' => $to.'@c.us',
+            'message' => $text,
+            'linkPreview' => false,
+        ]);
     }
 
     private function failed(WhatsappLog $message, string $code): bool

@@ -20,7 +20,7 @@ Scan QR di outlet → halaman outlet (/r/{slug}) → "Lanjut via WhatsApp"
 5. [Akses dari HP dengan scan QR](#akses-dari-hp-dengan-scan-qr)
 6. [Akun admin dan peran](#akun-admin-dan-peran)
 7. [Mencoba chatbot tanpa WhatsApp](#mencoba-chatbot-tanpa-whatsapp)
-8. [Menghubungkan WhatsApp (Twilio / Meta)](#menghubungkan-whatsapp)
+8. [Menghubungkan WhatsApp (Twilio / GREEN-API / Meta)](#menghubungkan-whatsapp)
 9. [Test otomatis](#test-otomatis)
 10. [Masalah umum](#masalah-umum)
 
@@ -29,7 +29,7 @@ Scan QR di outlet → halaman outlet (/r/{slug}) → "Lanjut via WhatsApp"
 - **Backend:** Laravel 13 (PHP 8.3+)
 - **Frontend:** Blade, CSS, dan JavaScript biasa (tanpa build step, file ada di `public/css` dan `public/js`)
 - **Database:** MySQL untuk development, SQLite in-memory untuk test
-- **WhatsApp:** Twilio atau Meta WhatsApp Cloud API (pilih lewat `.env`)
+- **WhatsApp:** Twilio, Meta WhatsApp Cloud API, atau GREEN-API (pilih lewat `.env`)
 - **QR code:** `endroid/qr-code`
 
 ## Kebutuhan
@@ -214,7 +214,29 @@ TWILIO_AUTH_TOKEN=...
 - Status pengiriman (Terkirim, Sampai, Dibaca) otomatis dilaporkan ke `/webhooks/twilio/status` jika `APP_URL` memakai HTTPS.
 - Pada sandbox, setiap nomor penguji harus mengirim `join <kode-sandbox>` ke nomor Twilio terlebih dahulu.
 
-### 2b. Meta WhatsApp Cloud API
+### 2b. GREEN-API (tidak resmi, untuk demo)
+
+GREEN-API menautkan nomor WhatsApp biasa seperti WhatsApp Web. Tidak perlu verifikasi Meta atau template, tetapi ini **bukan API resmi** dan nomornya bisa diblokir WhatsApp. **Pakai nomor cadangan.**
+
+1. Daftar di console.green-api.com, buat instance (paket Developer), lalu scan QR dari WhatsApp nomor cadangan (**Perangkat tertaut**) sampai status **Authorized**.
+2. Buat token webhook acak, misalnya dengan `php -r "echo bin2hex(random_bytes(24));"`.
+3. Isi `.env`:
+
+```env
+WHATSAPP_ENABLED=true
+WHATSAPP_PROVIDER=greenapi
+WHATSAPP_PHONE_NUMBER=62...          # nomor cadangan yang ditautkan
+GREENAPI_API_URL=https://7107.api.greenapi.com
+GREENAPI_ID_INSTANCE=...
+GREENAPI_API_TOKEN=...               # apiTokenInstance
+GREENAPI_WEBHOOK_TOKEN=...           # token acak dari langkah 2
+```
+
+4. Di console GREEN-API → instance → **Change** (pengaturan): isi **webhookUrl** dengan `https://<domain>/webhooks/greenapi`, **webhookUrlToken** dengan token yang sama, lalu aktifkan notifikasi pesan masuk (incoming messages) dan status pesan keluar (outgoing message statuses).
+
+Semua pesan dikirim sebagai teks biasa, termasuk notifikasi antrean, jadi variabel `WHATSAPP_TEMPLATE_*` tidak dipakai.
+
+### 2c. Meta WhatsApp Cloud API
 
 ```env
 WHATSAPP_ENABLED=true

@@ -16,9 +16,9 @@ Halaman tiket `/queue/{public_token}` di-poll setiap 10 detik; halaman outlet se
 - Laravel 13, PHP 8.3+, MySQL (dev), SQLite in-memory (test). Blade + CSS + JS biasa di `public/` tanpa build step.
 - `app/Services/QueueService.php`: nomor antrean, posisi, estimasi, call/complete/skip/cancel. Semua perubahan di dalam transaksi dengan `lockForUpdate` pada restoran.
 - `app/Services/WhatsAppChatbotService.php`: state machine chatbot.
-- `app/Services/WhatsAppService.php`: outbox `whatsapp_logs` + pengiriman Meta/Twilio.
+- `app/Services/WhatsAppService.php`: outbox `whatsapp_logs` + pengiriman Meta/Twilio/GREEN-API.
 - `app/Services/QueueWhatsAppNotificationService.php`: notifikasi tinggal 3, tinggal 1, dipanggil, dibatalkan.
-- `app/Http/Controllers/WhatsAppWebhookController.php` (Meta) dan `TwilioWebhookController.php` (Twilio).
+- `app/Http/Controllers/WhatsAppWebhookController.php` (Meta), `TwilioWebhookController.php` (Twilio), dan `GreenApiWebhookController.php` (GREEN-API, tidak resmi: nomor WA biasa yang ditautkan lewat QR; satu endpoint untuk pesan masuk dan status).
 - `routes/web.php`: route admin dibagi tiga grup: semua admin, per outlet (`can:manage-restaurant`), dan khusus pemilik (`can:owner`).
 - `routes/console.php`: `satset:admin` (buat akun pemilik), `satset:lan` (server untuk diakses HP di Wi-Fi yang sama), `whatsapp:send-pending`.
 
@@ -35,10 +35,10 @@ Halaman tiket `/queue/{public_token}` di-poll setiap 10 detik; halaman outlet se
 - `party_size` adalah jumlah tamu dalam satu kelompok. Satu kelompok mendapat satu nomor antrean.
 - Slug outlet tidak berubah walau nama berganti, supaya QR yang sudah dicetak tetap berlaku. Prefix tidak bisa diubah setelah ada riwayat antrean.
 - Satu nomor WhatsApp hanya punya satu tiket aktif per outlet.
-- Webhook memverifikasi signature dari raw request sebelum membaca isi (Meta: `X-Hub-Signature-256`; Twilio: `X-Twilio-Signature` dengan URL dari `APP_URL`).
+- Webhook memverifikasi signature dari raw request sebelum membaca isi (Meta: `X-Hub-Signature-256`; Twilio: `X-Twilio-Signature` dengan URL dari `APP_URL`; GREEN-API: header `Authorization` berisi `GREENAPI_WEBHOOK_TOKEN`, plus `idInstance` harus cocok). Webhook provider yang tidak aktif menjawab 503.
 - ID pesan masuk disimpan unik (`whatsapp_incoming_messages`), sehingga pesan yang dikirim ulang provider diproses sekali.
 - Pesan keluar ditulis ke outbox dulu (dengan `event_key` unik), baru dikirim lewat job `DeliverWhatsAppMessage`. Notifikasi yang sama tidak pernah terkirim dua kali. Error yang dicatat sudah disanitasi; kredensial tidak pernah masuk log.
-- Di luar jendela 24 jam sejak pesan terakhir customer, kirim template (`WHATSAPP_TEMPLATE_*`: nama template Meta atau Content SID Twilio); kalau tidak ada template, catat `template_required`.
+- Di luar jendela 24 jam sejak pesan terakhir customer, kirim template (`WHATSAPP_TEMPLATE_*`: nama template Meta atau Content SID Twilio); kalau tidak ada template, catat `template_required`. GREEN-API tidak punya jendela 24 jam (`WhatsAppService::hasSessionWindow()`), jadi selalu teks biasa. Token GREEN-API ada di URL request, jadi URL itu tidak boleh di-log.
 - Link yang dikirim lewat WhatsApp dibangun dari `APP_URL`, bukan dari host request.
 - QR memakai `APP_URL`, kecuali `APP_URL` masih localhost dan admin membuka lewat alamat jaringan (supaya bisa di-scan HP di Wi-Fi yang sama).
 - Hanya proxy di loopback (`127.0.0.1`, `::1`) yang dipercaya, untuk tunnel `cloudflared`.
@@ -50,10 +50,14 @@ Halaman tiket `/queue/{public_token}` di-poll setiap 10 detik; halaman outlet se
 APP_URL=                     # alamat publik (tunnel/domain); dipakai untuk QR dan link WhatsApp
 SATSET_WEB_SIGNUP=false      # true = daftar lewat form web
 WHATSAPP_ENABLED=false
-WHATSAPP_PROVIDER=meta       # meta | twilio
-WHATSAPP_PHONE_NUMBER=       # nomor WhatsApp publik, format 62.../1... (Twilio: juga nomor pengirim)
+WHATSAPP_PROVIDER=meta       # meta | twilio | greenapi
+WHATSAPP_PHONE_NUMBER=       # nomor WhatsApp publik, format 62.../1... (Twilio/GREEN-API: juga nomor pengirim)
 TWILIO_ACCOUNT_SID=
 TWILIO_AUTH_TOKEN=
+GREENAPI_API_URL=            # https://NNNN.api.greenapi.com
+GREENAPI_ID_INSTANCE=
+GREENAPI_API_TOKEN=          # apiTokenInstance
+GREENAPI_WEBHOOK_TOKEN=      # rahasia buatan sendiri = webhookUrlToken di console
 WHATSAPP_ACCESS_TOKEN=       # Meta
 WHATSAPP_PHONE_NUMBER_ID=    # Meta
 WHATSAPP_BUSINESS_ACCOUNT_ID=
@@ -70,7 +74,7 @@ Jangan pernah commit `.env` atau nilai asli kredensial. Saat aplikasi bisa diaks
 - Semua teks UI dalam Bahasa Indonesia. Label status tiket diambil dari `QueueTicket::STATUS_LABELS`.
 - Warna dan ukuran didefinisikan sebagai token di `:root` pada `public/css/satset.css` (customer) dan `public/css/admin.css` (admin). Warna brand `#2e6d6d`.
 - Setelah mengubah CSS/JS, naikkan query versi (`?v=ui-N`) di layout supaya cache browser diperbarui.
-- Test: `php artisan test`. HTTP ke Meta/Twilio selalu di-fake. Pengaturan WhatsApp untuk test dikunci di `phpunit.xml`, jadi tidak terpengaruh `.env` lokal.
+- Test: `php artisan test`. HTTP ke Meta/Twilio/GREEN-API selalu di-fake. Pengaturan WhatsApp untuk test dikunci di `phpunit.xml`, jadi tidak terpengaruh `.env` lokal.
 - Nilai contoh yang formatnya mirip kredensial asli (misalnya Account SID Twilio) dipecah, contohnya `'AC'.'000…'`, supaya tidak memicu secret scanning GitHub.
 
 ## Belum dikerjakan (backlog)

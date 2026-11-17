@@ -46,7 +46,7 @@ class QueueWhatsAppNotificationService
         $recent = WhatsAppConversation::query()->where('phone_number', $ticket->phone_number)
             ->where('last_message_at', '>', now()->subHours(24))->exists();
 
-        if (! $recent && filled($template)) {
+        if (! $recent && filled($template) && $this->whatsapp->hasSessionWindow()) {
             $this->whatsapp->sendTemplateMessage($ticket->phone_number, $template,
                 [$ticket->queue_number, $ticket->restaurant->name], $text, $ticket, eventKey: $key, notificationField: $field);
         } else {

@@ -44,5 +44,9 @@
         <env name="WHATSAPP_VERIFY_TOKEN" value="" force="true"/>
         <env name="TWILIO_ACCOUNT_SID" value="" force="true"/>
         <env name="TWILIO_AUTH_TOKEN" value="" force="true"/>
+        <env name="GREENAPI_API_URL" value="" force="true"/>
+        <env name="GREENAPI_ID_INSTANCE" value="" force="true"/>
+        <env name="GREENAPI_API_TOKEN" value="" force="true"/>
+        <env name="GREENAPI_WEBHOOK_TOKEN" value="" force="true"/>
     </php>
 </phpunit>

@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\AdminQueueController;
 use App\Http\Controllers\Admin\AdminQueueOverviewController;
 use App\Http\Controllers\Admin\AdminRestaurantController;
 use App\Http\Controllers\Admin\AdminUserController;
+use App\Http\Controllers\GreenApiWebhookController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\TwilioWebhookController;
 use App\Http\Controllers\WhatsAppWebhookController;
@@ -27,6 +28,8 @@ Route::post('/webhooks/whatsapp', [WhatsAppWebhookController::class, 'receive'])
 
 Route::post('/webhooks/twilio', [TwilioWebhookController::class, 'receive'])->name('whatsapp.twilio');
 Route::post('/webhooks/twilio/status', [TwilioWebhookController::class, 'status'])->name('whatsapp.twilio.status');
+
+Route::post('/webhooks/greenapi', [GreenApiWebhookController::class, 'receive'])->name('whatsapp.greenapi');
 
 Route::get('/restaurants/{restaurant}', fn (\App\Models\Restaurant $restaurant) => redirect()->route('outlets.show', $restaurant->slug))
     ->name('restaurants.show');
