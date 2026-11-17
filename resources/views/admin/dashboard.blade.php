@@ -9,6 +9,18 @@
         @endcan
     </header>
 
+    @if ($whatsappWarnings !== [])
+        <div class="admin-notice admin-notice-warning admin-wa-warnings" role="alert">
+            <strong>Perlu perhatian: WhatsApp</strong>
+            <ul>
+                @foreach ($whatsappWarnings as $warning)
+                    <li>{{ $warning }}</li>
+                @endforeach
+            </ul>
+            <a href="{{ route('admin.whatsapp.connect') }}">Buka Hubungkan WhatsApp</a> · <a href="{{ route('admin.whatsapp-logs.index') }}">Log WhatsApp</a>
+        </div>
+    @endif
+
     @if (! auth()->user()->isOwner() && $restaurants->isEmpty())
         <div class="admin-notice admin-notice-warning">Akun Anda belum terhubung ke outlet mana pun. Hubungi pemilik SatSet untuk mendapatkan akses.</div>
     @endif

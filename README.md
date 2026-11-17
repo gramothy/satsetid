@@ -20,7 +20,7 @@ Scan QR di outlet → halaman outlet (/r/{slug}) → "Lanjut via WhatsApp"
 5. [Akses dari HP dengan scan QR](#akses-dari-hp-dengan-scan-qr)
 6. [Akun admin dan peran](#akun-admin-dan-peran)
 7. [Mencoba chatbot tanpa WhatsApp](#mencoba-chatbot-tanpa-whatsapp)
-8. [Menghubungkan WhatsApp (Twilio / GREEN-API / Meta)](#menghubungkan-whatsapp)
+8. [Menghubungkan WhatsApp (Baileys; Twilio, Meta, GREEN-API opsional)](#menghubungkan-whatsapp)
 9. [Test otomatis](#test-otomatis)
 10. [Masalah umum](#masalah-umum)
 
@@ -29,15 +29,15 @@ Scan QR di outlet → halaman outlet (/r/{slug}) → "Lanjut via WhatsApp"
 - **Backend:** Laravel 13 (PHP 8.3+)
 - **Frontend:** Blade, CSS, dan JavaScript biasa (tanpa build step, file ada di `public/css` dan `public/js`)
 - **Database:** MySQL untuk development, SQLite in-memory untuk test
-- **WhatsApp:** Twilio, Meta WhatsApp Cloud API, atau GREEN-API (pilih lewat `.env`)
+- **WhatsApp:** Baileys (koneksi WhatsApp Web, **tidak resmi**) lewat `wa-gateway/` (Node.js) sebagai bawaan. Twilio, Meta WhatsApp Cloud API, dan GREEN-API tetap bisa dipilih lewat `WHATSAPP_PROVIDER`
 - **QR code:** `endroid/qr-code`
 
 ## Kebutuhan
 
-- PHP **8.3 atau lebih baru** dengan ekstensi `pdo_mysql`, `mbstring`, `openssl`, `curl`, `fileinfo`
+- PHP **8.3 atau lebih baru** dengan ekstensi `pdo_mysql`, `mbstring`, `openssl`, `curl`, `fileinfo`. `composer.lock` dikunci untuk PHP 8.3 (`config.platform.php` di `composer.json`), jadi `composer install` berjalan di PHP 8.3 maupun 8.4
 - Composer
 - MySQL atau MariaDB (MySQL Server atau XAMPP; **pakai salah satu saja** agar port 3306 tidak bentrok)
-- Node.js **tidak** diperlukan
+- Node.js **20.12 atau lebih baru** (disarankan 22 LTS), hanya untuk `wa-gateway` saat WhatsApp dipakai. Tanpa WhatsApp, Node.js tidak diperlukan
 
 ## Instalasi pertama kali
 
@@ -106,7 +106,7 @@ Biarkan terminal tetap terbuka (tekan **Ctrl + C** untuk berhenti), lalu buka:
 
 Slug outlet bisa dilihat di **Admin → QR Code**.
 
-Jika WhatsApp sudah diaktifkan, jalankan juga worker di terminal kedua supaya pesan keluar terkirim:
+Jika WhatsApp sudah diaktifkan, jalankan juga worker di terminal kedua supaya pesan keluar terkirim (dan `wa-gateway`, lihat [Menghubungkan WhatsApp](#menghubungkan-whatsapp)):
 
 ```bash
 php artisan queue:work
@@ -141,13 +141,13 @@ Karena halaman admin dibuka lewat alamat jaringan, QR otomatis berisi alamat yan
 > Catatan:
 > - Alamat jaringan laptop bisa berubah kalau Wi-Fi tersambung ulang. Jalankan `php artisan satset:lan` lagi untuk melihat alamat terbaru.
 > - QR yang memakai alamat jaringan hanya berlaku di Wi-Fi tersebut. Untuk QR yang dicetak dan ditempel di outlet, isi `APP_URL` dengan domain HTTPS (misalnya `https://satsetid.my.id`); QR akan selalu memakai `APP_URL` jika isinya bukan `localhost`.
-> - Untuk mengakses dari jaringan mana pun (misalnya data seluler), atau untuk menguji WhatsApp, gunakan tunnel. Lihat [Menghubungkan WhatsApp](#menghubungkan-whatsapp).
+> - Untuk mengakses dari jaringan mana pun (misalnya data seluler), gunakan tunnel. Lihat [Menghubungkan WhatsApp](#menghubungkan-whatsapp) langkah 8.
 
 ## Akun admin dan peran
 
 | Peran | Akses |
 |---|---|
-| **Pemilik SatSet** | Semua outlet, tambah atau nonaktifkan restoran, kelola akun admin, log WhatsApp |
+| **Pemilik SatSet** | Semua outlet, tambah atau nonaktifkan restoran, kelola akun admin, hubungkan nomor WhatsApp, log WhatsApp |
 | **Admin outlet** (kasir) | Hanya outlet yang dipilihkan: kelola antrean, QR, dan pengaturan outlet (kecuali nama, prefix, dan status aktif) |
 
 - Akun pemilik dibuat dengan `php artisan satset:admin`.
@@ -181,40 +181,143 @@ Setelah itu klik **Panggil berikutnya** di halaman antrean admin, lalu jalankan 
 
 ## Menghubungkan WhatsApp
 
-### 1. Buat alamat publik HTTPS (untuk development)
+> [!WARNING]
+> **Baca dulu: risiko memakai Baileys**
+> - SatSet tersambung ke WhatsApp lewat **Baileys**, library tidak resmi yang meniru WhatsApp Web. **Cara ini melanggar Ketentuan Layanan WhatsApp.** Nomor yang dipakai bisa dibatasi atau **diblokir permanen** sewaktu-waktu, tanpa peringatan.
+> - Pakai **nomor khusus outlet/demo**. Jangan pakai nomor pribadi atau nomor bisnis utama.
+> - SatSet sengaja membatasi diri: hanya membalas nomor yang **lebih dulu chat ke bot**, memberi **jeda acak 3–8 detik** antar pesan, membatasi **200 pesan per hari** (reset tengah malam WIB), dan **tidak punya** fitur pesan massal atau promosi. Jangan mengubahnya untuk broadcast.
+> - `WHATSAPP_ENABLED` bawaannya `false`. Nyalakan hanya saat diperlukan, misalnya untuk demo.
+> - Untuk layanan sungguhan, gunakan WhatsApp Business Platform resmi.
 
-Provider WhatsApp perlu mengirim pesan masuk (webhook) ke aplikasi Anda. Gunakan Cloudflare Tunnel:
+Cara kerjanya:
 
-```bash
-cloudflared tunnel --url http://localhost:8000
+```text
+HP customer ⇄ WhatsApp ⇄ wa-gateway (Node + Baileys, 127.0.0.1:3100) ⇄ Laravel (127.0.0.1:8000)
 ```
 
-Salin alamat `https://….trycloudflare.com` yang muncul, isi ke `APP_URL` di `.env`, lalu jalankan:
+`wa-gateway` hanya memegang sesi WhatsApp. Semua logika (chatbot, antrean, outbox pesan) tetap di Laravel. Keduanya hanya berbicara di komputer yang sama: Laravel memanggil gateway dengan token, dan gateway mengirim pesan masuk, status pesan, dan status sesi ke `POST /webhooks/baileys` dengan signature HMAC.
+
+### 1. Instal wa-gateway (sekali)
+
+Butuh Node.js 20.12 atau lebih baru (cek dengan `node --version`).
+
+```bash
+cd wa-gateway
+```
+
+```bash
+npm install
+```
+
+### 2. Buat token dan secret
+
+Jalankan perintah ini **dua kali** untuk mendapat dua nilai acak yang berbeda:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Nilai pertama menjadi **token** (Laravel → gateway), nilai kedua menjadi **secret webhook** (gateway → Laravel). Jangan pernah commit atau membagikan keduanya.
+
+### 3. Isi `wa-gateway/.env`
+
+Salin `wa-gateway/.env.example` menjadi `wa-gateway/.env` (di Windows: `copy .env.example .env`), lalu isi:
+
+```env
+WA_GATEWAY_TOKEN=nilai-pertama
+WA_WEBHOOK_SECRET=nilai-kedua
+```
+
+Nilai lain boleh dibiarkan: port `3100`, webhook `http://127.0.0.1:8000/webhooks/baileys`, jeda `3000`–`8000` ms, dan batas `200` pesan per hari. Gateway **tidak** membaca `.env` Laravel. Kalau Laravel berjalan di port lain, sesuaikan `WA_WEBHOOK_URL`.
+
+### 4. Isi `.env` Laravel
+
+```env
+WHATSAPP_ENABLED=true
+WHATSAPP_PROVIDER=baileys
+WHATSAPP_GATEWAY_URL=http://127.0.0.1:3100
+WHATSAPP_GATEWAY_TOKEN=nilai-pertama
+WHATSAPP_WEBHOOK_SECRET=nilai-kedua
+```
+
+Token dan secret harus **sama persis** dengan `wa-gateway/.env`. Lalu jalankan:
 
 ```bash
 php artisan config:clear
 ```
 
-Alamat tunnel berubah setiap kali `cloudflared` dijalankan ulang. Perbarui `APP_URL` dan URL webhook di provider setiap kali itu terjadi.
+### 5. Jalankan empat terminal
 
-### 2a. Twilio
+| Terminal | Perintah | Fungsi |
+|---|---|---|
+| 1 | `php artisan serve` (atau `php artisan satset:lan`) | Web SatSet |
+| 2 | `php artisan queue:work` | Mengirim pesan keluar dari outbox |
+| 3 | `npm start` (di folder `wa-gateway`) | Sesi WhatsApp |
+| 4 | `php artisan schedule:work` | Pemantauan dan email peringatan, serta mencoba ulang pesan tertunda setiap menit |
 
-Isi `.env` (jangan pernah commit atau bagikan token):
+### 6. Scan QR dari halaman admin
 
-```env
-WHATSAPP_ENABLED=true
-WHATSAPP_PROVIDER=twilio
-WHATSAPP_PHONE_NUMBER=14155238886
-TWILIO_ACCOUNT_SID=AC...
-TWILIO_AUTH_TOKEN=...
+1. Login sebagai **pemilik**, buka **Admin → Hubungkan WhatsApp**. QR muncul dan diperbarui otomatis setiap 5 detik.
+2. Di HP yang memakai nomor outlet: buka WhatsApp → **Perangkat tertaut** → **Tautkan perangkat**, lalu scan QR.
+3. Status berubah menjadi **Tersambung** dan nomornya tampil. Tombol **Lanjut via WhatsApp** di halaman outlet langsung memakai nomor itu (`WHATSAPP_PHONE_NUMBER` tidak dipakai).
+
+Sesi tersimpan di `wa-gateway/auth_info/` (sudah di-*ignore* Git; jangan dibagikan). Saat gateway dijalankan ulang, ia langsung tersambung tanpa scan.
+
+### 7. Coba dari HP lain
+
+Dari HP dengan nomor **lain**, kirim `ANTRE <slug-outlet>` ke nomor outlet (atau scan QR outlet lalu klik **Lanjut via WhatsApp**). Bot membalas, lalu balas jumlah tamu dan `YA`. Semua pesan masuk dan keluar terlihat di **Admin → Log WhatsApp**.
+
+### 8. (Opsional) Link tiket untuk customer di jaringan lain
+
+Balasan bot berisi link tiket yang dibangun dari `APP_URL`. Supaya link itu bisa dibuka dari data seluler, buat alamat publik dengan Cloudflare Tunnel:
+
+```bash
+cloudflared tunnel --url http://localhost:8000
 ```
 
-- `WHATSAPP_PHONE_NUMBER` adalah nomor WhatsApp Twilio Anda (nomor sandbox atau nomor milik sendiri).
-- Di Twilio Console → Messaging → Try it out → Send a WhatsApp message → **Sandbox settings**, isi **"When a message comes in"** dengan `https://<alamat-tunnel>/webhooks/twilio` (method **POST**).
-- Status pengiriman (Terkirim, Sampai, Dibaca) otomatis dilaporkan ke `/webhooks/twilio/status` jika `APP_URL` memakai HTTPS.
-- Pada sandbox, setiap nomor penguji harus mengirim `join <kode-sandbox>` ke nomor Twilio terlebih dahulu.
+Isi alamat `https://….trycloudflare.com` ke `APP_URL`, lalu jalankan `php artisan config:clear`. wa-gateway sendiri **tidak** perlu tunnel karena webhook-nya lokal.
 
-### 2b. GREEN-API (tidak resmi, untuk demo)
+### Memutus nomor
+
+**Admin → Hubungkan WhatsApp → Putuskan nomor**. Gateway mengeluarkan perangkat dari WhatsApp, menghapus `auth_info/`, dan **tidak** menyambung ulang otomatis. Hal yang sama terjadi kalau perangkat dikeluarkan dari HP atau nomor diblokir (status **Sesi diputus**). Untuk menyambungkan lagi: hentikan gateway (**Ctrl + C**), jalankan `npm start`, lalu scan QR baru.
+
+### Kalau gateway mati
+
+- Pesan keluar tetap **Menunggu kirim** tanpa menghabiskan jatah percobaan, lalu terkirim otomatis begitu gateway tersambung lagi.
+- Kalau gateway menolak sementara (batas harian tercapai atau sedang sibuk), Laravel mencoba lagi sampai 5 kali (setiap menit lewat `schedule:work`), lalu menandai **Gagal** (`gateway_unavailable`).
+- Kalau koneksi putus **setelah** gateway sempat menerima pesan, pesan ditandai **Gagal** (`ambiguous_timeout`) dan **tidak** dikirim ulang otomatis supaya customer tidak menerima pesan ganda. Periksa manual di Log WhatsApp.
+- Log Laravel dan log wa-gateway tidak mencatat token, secret, maupun isi pesan.
+
+### Kalau Laravel mati
+
+Pesan customer yang masuk saat Laravel mati, sedang restart, atau dalam mode maintenance **tidak hilang**. Gateway menyimpan setiap event ke `wa-gateway/data/webhook-queue/pending/` sebelum mengirimnya, lalu mencoba lagi (1, 2, 4 … sampai 30 detik) dengan urutan tetap sampai Laravel menerima. Event juga tetap ada kalau gateway ikut dimatikan, dan dikirim begitu gateway dijalankan lagi.
+
+- Event yang ditolak Laravel (misalnya data tidak valid), terus menyebabkan error, atau tidak diterima dalam 24 jam dipindahkan ke `wa-gateway/data/webhook-queue/failed/`. Setelah penyebabnya diperbaiki, kembalikan ke antrean dengan `npm run webhooks:replay` (di folder `wa-gateway`), lalu jalankan ulang gateway. Hapus file yang sudah ditangani.
+- Kalau secret webhook berbeda, event tidak dibuang. Gateway mencatat "Laravel menolak signature webhook" dan terus mencoba sampai secret disamakan.
+- Folder `wa-gateway/data/` berisi isi pesan dan nomor HP sampai event diterima Laravel. Folder ini sudah di-*ignore* Git; jangan dibagikan.
+
+### Pemantauan dan peringatan
+
+`php artisan whatsapp:monitor` berjalan setiap menit lewat `php artisan schedule:work` dan memeriksa:
+
+| Masalah | Kapan diperingatkan |
+|---|---|
+| Sesi diputus atau token gateway salah | Langsung |
+| Gateway tidak berjalan, menyambung ulang, atau menunggu scan QR | Setelah 3 menit berturut-turut |
+| Pesan keluar menunggu kirim lebih dari 10 menit | Langsung (tanda `queue:work` atau gateway mati) |
+| 5 pesan gagal atau lebih dalam 60 menit (di luar `not_opted_in`) | Langsung |
+| Gateway menahan 10 event atau lebih yang belum diterima Laravel | Langsung |
+| Ada event di `wa-gateway/data/webhook-queue/failed/` | Langsung, pengingat sekali sehari |
+
+Peringatan dikirim lewat **email ke semua akun pemilik yang aktif**, diulang paling sering sekali per jam selama masalah berlangsung, ditambah satu email saat masalah selesai. Isi email hanya menyebut jenis masalah dan jumlahnya, tanpa isi pesan, nomor HP, atau kredensial. Atur pengiriman email di `.env` (`MAIL_MAILER`, `MAIL_HOST`, dan seterusnya); bawaan `MAIL_MAILER=log` hanya menulis email ke `storage/logs/laravel.log`.
+
+Masalah yang sama tampil di **Dashboard** pemilik, termasuk peringatan "Pemantauan WhatsApp tidak berjalan" kalau `schedule:work` mati lebih dari 5 menit. Pemantauan hanya aktif kalau `WHATSAPP_ENABLED=true`.
+
+### Provider lain (Twilio, Meta, GREEN-API)
+
+Selain Baileys, SatSet tetap mendukung Twilio, Meta WhatsApp Cloud API, dan GREEN-API lewat `WHATSAPP_PROVIDER=twilio`, `meta`, atau `greenapi`. Variabelnya ada di bagian bawah `.env.example`; langkah Twilio dan Meta ada di README sebelum migrasi Baileys (riwayat Git). Pemantauan pesan tertunda dan pesan gagal juga berlaku untuk provider ini; pemeriksaan gateway hanya untuk Baileys. Server yang sudah memakai provider lain harus menulis `WHATSAPP_PROVIDER` secara eksplisit di `.env`, karena bawaannya sekarang `baileys`.
+
+#### GREEN-API (tidak resmi, untuk demo)
 
 GREEN-API menautkan nomor WhatsApp biasa seperti WhatsApp Web. Tidak perlu verifikasi Meta atau template, tetapi ini **bukan API resmi** dan nomornya bisa diblokir WhatsApp. **Pakai nomor cadangan.**
 
@@ -236,46 +339,25 @@ GREENAPI_WEBHOOK_TOKEN=...           # token acak dari langkah 2
 
 Semua pesan dikirim sebagai teks biasa, termasuk notifikasi antrean, jadi variabel `WHATSAPP_TEMPLATE_*` tidak dipakai.
 
-### 2c. Meta WhatsApp Cloud API
-
-```env
-WHATSAPP_ENABLED=true
-WHATSAPP_PROVIDER=meta
-WHATSAPP_PHONE_NUMBER=62...
-WHATSAPP_ACCESS_TOKEN=...
-WHATSAPP_PHONE_NUMBER_ID=...
-WHATSAPP_BUSINESS_ACCOUNT_ID=...
-WHATSAPP_APP_SECRET=...
-WHATSAPP_VERIFY_TOKEN=teks-acak-buatan-anda
-WHATSAPP_API_VERSION=v23.0
-```
-
-Webhook di Meta: `https://<alamat-tunnel>/webhooks/whatsapp`, dengan verify token yang sama, lalu subscribe ke field **messages**.
-
-### 3. Template notifikasi (opsional)
-
-Balasan chatbot bisa dikirim bebas karena customer chat terlebih dahulu. Notifikasi yang dikirim **lebih dari 24 jam** setelah pesan terakhir customer memerlukan template yang sudah disetujui. Dua variabel template diisi otomatis: `{{1}}` nomor antrean, `{{2}}` nama outlet.
-
-```env
-WHATSAPP_TEMPLATE_THREE_AHEAD=
-WHATSAPP_TEMPLATE_ONE_AHEAD=
-WHATSAPP_TEMPLATE_CALLED=
-WHATSAPP_TEMPLATE_CANCELLED=
-```
-
-Isi dengan **Content SID** (`HX...`) untuk Twilio, atau **nama template** untuk Meta.
-
-### 4. Jalankan
-
-Gunakan tiga terminal: `php artisan serve`, `php artisan queue:work`, dan `cloudflared tunnel --url http://localhost:8000`. Semua pesan masuk dan keluar bisa dipantau di **Admin → Log WhatsApp**.
-
 ## Test otomatis
 
 ```bash
 php artisan test
 ```
 
-Test memakai database SQLite in-memory dan API WhatsApp tiruan, jadi database lokal tidak tersentuh dan tidak ada pesan yang benar-benar terkirim. Cakupannya meliputi alur chatbot, penomoran antrean dan estimasi waktu, notifikasi, Twilio dan Meta (termasuk verifikasi signature), serta pembagian akses pemilik dan admin outlet.
+Test memakai database SQLite in-memory dan API WhatsApp tiruan (termasuk wa-gateway tiruan), jadi database lokal tidak tersentuh dan tidak ada pesan yang benar-benar terkirim. Cakupannya meliputi alur chatbot, penomoran antrean dan estimasi waktu, notifikasi, Baileys, Twilio dan Meta (termasuk verifikasi signature), serta pembagian akses pemilik dan admin outlet.
+
+Test wa-gateway (fungsi murni, jeda antar pesan dengan timer palsu, webhook, HTTP, dan sesi dengan socket tiruan; tidak tersambung ke WhatsApp):
+
+```bash
+cd wa-gateway
+```
+
+```bash
+npm test
+```
+
+Keduanya juga dijalankan otomatis oleh GitHub Actions (`.github/workflows/tests.yml`) untuk setiap push ke `main` dan setiap pull request: Laravel di PHP 8.3 dan 8.4, wa-gateway di Node 22 dan 24.
 
 ## Masalah umum
 
@@ -288,6 +370,14 @@ Test memakai database SQLite in-memory dan API WhatsApp tiruan, jadi database lo
 | Tampilan terlihat lama setelah update | Tekan **Ctrl + F5** di browser |
 | HP tidak bisa membuka halaman saat scan QR | Pastikan Wi-Fi sama dan server dijalankan dengan `php artisan satset:lan`. Izinkan PHP di Windows Firewall (Private). Beberapa Wi-Fi publik atau kampus memblokir koneksi antar perangkat; coba hotspot HP |
 | QR masih berisi `localhost` | Halaman admin dibuka lewat `localhost`. Buka lewat alamat jaringan dari `php artisan satset:lan` |
-| Tombol "Lanjut via WhatsApp" abu-abu | WhatsApp belum aktif atau konfigurasinya belum lengkap (lihat bagian WhatsApp) |
-| Pesan WhatsApp berstatus "Menunggu kirim" | `php artisan queue:work` belum dijalankan |
-| Webhook Twilio mendapat 403 | `APP_URL` tidak sama dengan alamat tunnel, atau `config:clear` belum dijalankan |
+| Tombol "Lanjut via WhatsApp" tidak muncul | WhatsApp belum aktif, konfigurasinya belum lengkap, atau gateway belum **Tersambung** (cek **Admin → Hubungkan WhatsApp**) |
+| Pesan WhatsApp berstatus "Menunggu kirim" | `php artisan queue:work` belum dijalankan, atau wa-gateway belum tersambung |
+| Admin → Hubungkan WhatsApp: "Gateway tidak berjalan" | Jalankan `npm start` di folder `wa-gateway`; cek `WHATSAPP_GATEWAY_URL` sesuai port gateway |
+| Admin → Hubungkan WhatsApp: "Token gateway ditolak" | Samakan `WHATSAPP_GATEWAY_TOKEN` dengan `WA_GATEWAY_TOKEN`, lalu `php artisan config:clear` |
+| Gateway mencatat "Laravel menolak signature webhook" | Samakan `WHATSAPP_WEBHOOK_SECRET` dengan `WA_WEBHOOK_SECRET`, lalu `php artisan config:clear` |
+| `npm start` berhenti dengan "Konfigurasi wa-gateway tidak valid" | Salin `wa-gateway/.env.example` ke `wa-gateway/.env` dan isi token serta secret (minimal 16 karakter, berbeda) |
+| Dashboard: "Pemantauan WhatsApp tidak berjalan" | Jalankan `php artisan schedule:work` di terminal terpisah |
+| Email peringatan tidak sampai | `MAIL_MAILER` masih `log` (email ada di `storage/logs/laravel.log`), atau pengaturan SMTP salah |
+| Peringatan "event dari wa-gateway disisihkan" | Periksa file di `wa-gateway/data/webhook-queue/failed/`, perbaiki penyebabnya, lalu `npm run webhooks:replay` dan jalankan ulang gateway |
+| Log WhatsApp: gagal `not_opted_in` | Nomor itu belum pernah chat ke bot. Sesuai desain, Baileys hanya mengirim ke nomor yang chat lebih dulu |
+| Webhook Twilio mendapat 403 (provider lama) | `APP_URL` tidak sama dengan alamat tunnel, atau `config:clear` belum dijalankan |

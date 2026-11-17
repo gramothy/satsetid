@@ -4,6 +4,7 @@ use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 use App\Models\WhatsappLog;
+use App\Services\WhatsAppMonitor;
 use App\Services\WhatsAppService;
 
 Artisan::command('inspire', function () {
@@ -17,6 +18,24 @@ Artisan::command('whatsapp:send-pending', function (WhatsAppService $whatsapp): 
 })->purpose('Deliver durable WhatsApp outbox messages');
 
 Schedule::command('whatsapp:send-pending')->everyMinute()->withoutOverlapping();
+
+Artisan::command('whatsapp:monitor', function (WhatsAppMonitor $monitor): void {
+    $result = $monitor->run();
+    if ($result['problems'] === []) {
+        $this->info('WhatsApp: tidak ada masalah.');
+    }
+    foreach ($result['problems'] as $problem) {
+        $this->warn('- '.$problem['message']);
+    }
+    if ($result['alerted'] !== []) {
+        $this->line('Email peringatan dikirim ke pemilik: '.implode(', ', $result['alerted']));
+    }
+    if ($result['recovered'] !== []) {
+        $this->line('Email pemulihan dikirim ke pemilik: '.implode(', ', $result['recovered']));
+    }
+})->purpose('Check the WhatsApp channel and email owners when something is wrong');
+
+Schedule::command('whatsapp:monitor')->everyMinute()->withoutOverlapping();
 
 Artisan::command('satset:admin {email} {--name=SatSet Admin}', function (): void {
     $email = $this->argument('email');

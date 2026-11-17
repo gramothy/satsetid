@@ -19,3 +19,35 @@ if (userForm) {
         picker.hidden = userForm.querySelector('[data-role-input]:checked')?.value === 'owner';
     }));
 }
+
+// Hubungkan WhatsApp: refresh the gateway status and QR every 5 seconds until the number is connected.
+const waConnect = document.querySelector('[data-wa-connect]');
+if (waConnect) {
+    const refresh = async () => {
+        if (!document.hidden) {
+            try {
+                const response = await fetch(waConnect.dataset.statusUrl, {
+                    headers: { Accept: 'application/json' },
+                    cache: 'no-store',
+                    credentials: 'same-origin',
+                });
+                if (response.redirected) {
+                    return; // Session expired: the next page load shows the login form.
+                }
+                if (response.ok) {
+                    const data = await response.json();
+                    waConnect.innerHTML = data.html;
+                    waConnect.dataset.state = data.state;
+                }
+            } catch {
+                // Network hiccup: try again on the next tick.
+            }
+        }
+        if (waConnect.dataset.state !== 'open') {
+            setTimeout(refresh, 5000);
+        }
+    };
+    if (waConnect.dataset.state !== 'open') {
+        setTimeout(refresh, 5000);
+    }
+}

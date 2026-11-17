@@ -27,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'webhooks/twilio',
             'webhooks/twilio/status',
             'webhooks/greenapi',
+            'webhooks/baileys',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

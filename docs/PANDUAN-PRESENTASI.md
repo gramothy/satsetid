@@ -1,6 +1,13 @@
 # Panduan Menjalankan SatSet untuk Presentasi
 
-Panduan ini untuk mendemokan SatSet di depan kelas atau juri: laptop tersambung ke proyektor, dan HP dipakai untuk scan QR sebagai customer. WhatsApp sungguhan tidak dipakai; chat customer disimulasikan dari terminal.
+Panduan ini untuk mendemokan SatSet di depan kelas atau juri: laptop tersambung ke proyektor, dan HP dipakai untuk scan QR sebagai customer.
+
+Ada dua cara memperlihatkan chatbot WhatsApp:
+
+- **WhatsApp sungguhan** lewat `wa-gateway` (Baileys): nomor khusus outlet di-scan dari halaman admin, lalu customer chat dari HP lain. Siapkan di langkah A7.
+- **Simulasi dari terminal** (tinker): tanpa nomor WhatsApp dan tanpa risiko. Selalu siapkan juga sebagai **cadangan**.
+
+> Baileys bukan API resmi WhatsApp dan melanggar ketentuan WhatsApp; nomor yang dipakai bisa diblokir. Pakai nomor khusus demo, jangan nomor pribadi. Detailnya di README bagian **Menghubungkan WhatsApp**.
 
 ---
 
@@ -14,10 +21,14 @@ Ikuti README bagian **Instalasi pertama kali** sampai selesai (Composer, `.env`,
 
 ### A2. Atur `.env` untuk demo
 
+Untuk demo dengan simulasi terminal saja:
+
 ```env
 APP_URL=http://localhost:8000
 WHATSAPP_ENABLED=false
 ```
+
+Untuk demo dengan WhatsApp sungguhan, isi bagian WhatsApp sesuai langkah A7 (`WHATSAPP_ENABLED=true`).
 
 Lalu jalankan:
 
@@ -52,6 +63,20 @@ Jalankan semua langkah di bagian **B** dan **C** satu kali dari awal sampai akhi
 - Rekam layar (screen record) satu kali demo yang berhasil, untuk jaga-jaga kalau di hari H laptop atau jaringan bermasalah.
 - Isi baterai laptop dan HP penuh, dan bawa charger.
 
+### A7. (Opsional) Sambungkan WhatsApp sungguhan
+
+Butuh Node.js 20.12+, satu **nomor WhatsApp khusus outlet** (di HP mana pun), dan satu HP lain sebagai customer.
+
+1. Ikuti README bagian **Menghubungkan WhatsApp** langkah 1–4: `npm install` di folder `wa-gateway`, buat token dan secret, isi `wa-gateway/.env` dan `.env` Laravel (`WHATSAPP_ENABLED=true`, `WHATSAPP_PROVIDER=baileys`), lalu `php artisan config:clear`.
+2. Jalankan empat terminal: `php artisan satset:lan`, `php artisan queue:work`, `npm start` di folder `wa-gateway`, dan `php artisan schedule:work` (pemantauan; tanpa ini Dashboard menampilkan peringatan kuning).
+3. Login sebagai pemilik, buka **Admin → Hubungkan WhatsApp**. Tunggu QR muncul.
+4. Di HP nomor outlet: WhatsApp → **Perangkat tertaut** → **Tautkan perangkat** → scan QR di layar laptop.
+5. Status berubah menjadi **Tersambung** dan nomor outlet tampil.
+6. Dari HP customer, scan QR outlet → **Lanjut via WhatsApp** → kirim pesan yang sudah terisi → balas `2` → balas `YA`. Pastikan bot membalas dan nomor antrean muncul.
+7. Panggil antrean dari admin beberapa kali dan pastikan notifikasi "Tinggal 3…", "Tinggal 1…", dan "Giliran … sudah tiba!" masuk ke HP customer.
+
+Sesi tersimpan di `wa-gateway/auth_info/`, jadi di hari H gateway langsung tersambung tanpa scan ulang. Jangan tekan **Putuskan nomor** setelah gladi resik.
+
 ---
 
 ## B. Hari H: menyalakan SatSet (±5 menit sebelum tampil)
@@ -78,7 +103,7 @@ php artisan satset:lan
 
 Catat alamat yang muncul, misalnya `http://172.20.10.3:8000`. Alamat ini disebut **`ALAMAT`**. Kalau muncul pop-up Windows Firewall, pilih **Allow** (Private).
 
-### B4. Terminal 2: siapkan "simulator WhatsApp"
+### B4. Terminal 2: siapkan "simulator WhatsApp" (cadangan)
 
 ```bash
 php artisan tinker
@@ -92,6 +117,24 @@ $inbox = function ($hp = '6281111111111') { App\Models\WhatsappLog::where('direc
 ```
 
 Perbesar ukuran huruf terminal (**Ctrl + scroll** atau **Ctrl + =**) supaya terbaca di proyektor.
+
+### B4a. (WhatsApp sungguhan) Terminal 3, 4, dan 5
+
+```bash
+php artisan queue:work
+```
+
+```bash
+php artisan schedule:work
+```
+
+Di terminal lain, dari folder `wa-gateway`:
+
+```bash
+npm start
+```
+
+Buka **Admin → Hubungkan WhatsApp** dan pastikan statusnya **Tersambung**. Kalau masih **Menunggu scan QR**, scan ulang dari HP nomor outlet (langkah A7). Kalau tidak bisa tersambung dalam 1–2 menit, lanjutkan demo dengan simulasi terminal.
 
 ### B5. Buka tab browser di laptop
 
@@ -118,7 +161,9 @@ Scan QR dari layar laptop. Kalau halaman outlet terbuka di HP, semuanya siap.
 - Jelaskan halaman outlet: **sedang dilayani**, **jumlah menunggu**, **estimasi tunggu**, semuanya tanpa login dan tanpa install aplikasi.
 
 ### 3. Daftar lewat WhatsApp (1,5 menit)
-Jelaskan: "Customer klik *Lanjut via WhatsApp* dan chat dengan bot SatSet. Untuk demo, chat-nya kami simulasikan di sini."
+**Dengan WhatsApp sungguhan:** di HP customer, klik **Lanjut via WhatsApp**. WhatsApp terbuka dengan pesan `ANTRE …` yang sudah terisi; kirim, lalu balas `2` dan `YA`. Perlihatkan layar HP (atau mirror ke proyektor). Bot membalas setelah jeda beberapa detik; jelaskan bahwa jeda itu disengaja.
+
+**Cadangan (simulasi):** jelaskan: "Customer klik *Lanjut via WhatsApp* dan chat dengan bot SatSet. Untuk demo, chat-nya kami simulasikan di sini."
 
 Pindah ke **terminal 2**, lalu ketik satu per satu:
 
@@ -144,7 +189,7 @@ Perlihatkan balasan bot: sapaan, konfirmasi, lalu **nomor antrean** dan link **L
 Pindah ke tab **Kelola antrean** di laptop:
 - Klik **Panggil berikutnya** lalu **Tandai selesai** beberapa kali.
 - Setiap kali, tunjukkan **HP**: jumlah antrean di depan berkurang sendiri (±10 detik).
-- Di terminal 2, ketik `$inbox();` untuk memperlihatkan notifikasi WhatsApp yang dikirim otomatis, misalnya "Tinggal 3 antrean lagi…" dan "Tinggal 1 antrean lagi…".
+- Notifikasi WhatsApp terkirim otomatis, misalnya "Tinggal 3 antrean lagi…" dan "Tinggal 1 antrean lagi…". Dengan WhatsApp sungguhan, perlihatkan HP customer; dengan simulasi, ketik `$inbox();` di terminal 2.
 - Saat giliran Anda dipanggil, **kartu tiket di HP berubah gelap dengan nomor menyala**. Ini momen yang paling menarik untuk ditunjukkan.
 
 ### 6. Fitur pemilik (1 menit)
@@ -167,10 +212,14 @@ Pindah ke tab **Kelola antrean** di laptop:
 | Tampilan berantakan atau terlihat lama | Tekan **Ctrl + F5** |
 | Lupa password admin | Buat akun pemilik baru: `php artisan satset:admin email-lain@anda.com` |
 | Tinker tertutup | Jalankan lagi `php artisan tinker` dan tempel ulang fungsi bantu di B4 |
+| Hubungkan WhatsApp tidak **Tersambung** | Pastikan `npm start` di `wa-gateway` berjalan. Kalau perlu scan ulang dan tidak sempat, pakai simulasi terminal (B4) |
+| Bot WhatsApp tidak membalas | Cek `php artisan queue:work` berjalan dan terminal gateway tidak menampilkan error. Kalau tetap tidak membalas, pakai simulasi terminal |
+| Status **Sesi diputus** (nomor dikeluarkan atau diblokir) | Lanjutkan dengan simulasi terminal. Jangan mencoba nomor pribadi di depan audiens |
 
 ---
 
 ## E. Setelah presentasi
 
 - Tekan **Ctrl + C** di terminal 1, dan ketik `exit` di terminal 2.
+- Kalau memakai WhatsApp sungguhan: tekan **Ctrl + C** sekali di terminal gateway dan tunggu tulisan "wa-gateway berhenti", lalu hentikan `queue:work`. Ubah `WHATSAPP_ENABLED=false` lagi bila nomor tidak dipakai.
 - Matikan hotspot HP.

@@ -6,6 +6,8 @@ use App\Http\Controllers\Admin\AdminQueueController;
 use App\Http\Controllers\Admin\AdminQueueOverviewController;
 use App\Http\Controllers\Admin\AdminRestaurantController;
 use App\Http\Controllers\Admin\AdminUserController;
+use App\Http\Controllers\Admin\AdminWhatsAppConnectController;
+use App\Http\Controllers\BaileysWebhookController;
 use App\Http\Controllers\GreenApiWebhookController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\TwilioWebhookController;
@@ -30,6 +32,9 @@ Route::post('/webhooks/twilio', [TwilioWebhookController::class, 'receive'])->na
 Route::post('/webhooks/twilio/status', [TwilioWebhookController::class, 'status'])->name('whatsapp.twilio.status');
 
 Route::post('/webhooks/greenapi', [GreenApiWebhookController::class, 'receive'])->name('whatsapp.greenapi');
+
+// wa-gateway (Baileys): incoming messages, delivery receipts and session changes, HMAC-signed.
+Route::post('/webhooks/baileys', BaileysWebhookController::class)->name('whatsapp.baileys');
 
 Route::get('/restaurants/{restaurant}', fn (\App\Models\Restaurant $restaurant) => redirect()->route('outlets.show', $restaurant->slug))
     ->name('restaurants.show');
@@ -104,6 +109,11 @@ Route::prefix('admin')->name('admin.')->group(function (): void {
                 ->except(['show', 'destroy']);
 
             Route::get('/whatsapp-logs', AdminWhatsAppLogController::class)->name('whatsapp-logs.index');
+
+            // Link the WhatsApp number used by wa-gateway (scan QR) or unlink it.
+            Route::get('/whatsapp/connect', [AdminWhatsAppConnectController::class, 'show'])->name('whatsapp.connect');
+            Route::get('/whatsapp/connect/status', [AdminWhatsAppConnectController::class, 'status'])->name('whatsapp.connect.status');
+            Route::post('/whatsapp/logout', [AdminWhatsAppConnectController::class, 'logout'])->name('whatsapp.logout');
         });
     });
 });

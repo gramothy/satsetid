@@ -9,8 +9,8 @@
     <title>{{ $title ?? 'SatSet Admin' }}</title>
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700,800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ asset('css/admin.css') }}?v=ui-8">
-    <script src="{{ asset('js/admin.js') }}?v=ui-8" defer></script>
+    <link rel="stylesheet" href="{{ asset('css/admin.css') }}?v=ui-9">
+    <script src="{{ asset('js/admin.js') }}?v=ui-9" defer></script>
 </head>
 <body class="admin-body">
     <div class="admin-shell">
@@ -33,6 +33,7 @@
                 <a @class(['active' => request()->routeIs('admin.qr.*')]) href="{{ route('admin.qr.index') }}">QR Code</a>
                 @can('owner')
                     <a @class(['active' => request()->routeIs('admin.users.*')]) href="{{ route('admin.users.index') }}">Akun admin</a>
+                    <a @class(['active' => request()->routeIs('admin.whatsapp.*')]) href="{{ route('admin.whatsapp.connect') }}">Hubungkan WhatsApp</a>
                     <a @class(['active' => request()->routeIs('admin.whatsapp-logs.*')]) href="{{ route('admin.whatsapp-logs.index') }}">Log WhatsApp</a>
                 @endcan
             </nav>

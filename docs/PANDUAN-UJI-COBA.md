@@ -141,11 +141,11 @@ Gunakan **jendela incognito/private** untuk login sebagai kasir, supaya login pe
 - [ ] **7.1** Sebagai pemilik: **Akun admin → Tambah akun**. Isi nama "Kasir Uji", email, dan password, pilih peran **Admin outlet**, centang **satu** outlet, lalu klik **Buat akun**.
 - [ ] **7.2** Coba buat akun **Admin outlet tanpa mencentang outlet**. Harus ditolak ("Pilih minimal satu outlet").
 - [ ] **7.3** Di jendela incognito, buka `ALAMAT/admin` dan login sebagai Kasir Uji. Kasir langsung diarahkan ke **halaman antrean outletnya**.
-- [ ] **7.4** Menu kasir hanya berisi **Outlet saya, Riwayat antrean, QR Code**. Tidak ada Restoran, Akun admin, atau Log WhatsApp.
+- [ ] **7.4** Menu kasir hanya berisi **Outlet saya, Riwayat antrean, QR Code**. Tidak ada Restoran, Akun admin, Hubungkan WhatsApp, atau Log WhatsApp.
 - [ ] **7.5** Kasir bisa **Panggil berikutnya / Tandai selesai** di outletnya.
 - [ ] **7.6** Kasir klik **Pengaturan outlet**. Nama dan prefix terkunci, dan opsi "Restoran aktif" tidak ada. Ubah deskripsi lalu simpan. Perubahan berhasil, dan kasir kembali ke halaman antrean.
 - [ ] **7.7** Di jendela kasir, buka alamat admin outlet **lain**, misalnya ganti angka di `ALAMAT/admin/restaurants/1/queue` ke ID outlet lain. Harus muncul **403 Forbidden**.
-- [ ] **7.8** Buka `ALAMAT/admin/users` dan `ALAMAT/admin/whatsapp-logs` sebagai kasir. Keduanya **403**.
+- [ ] **7.8** Buka `ALAMAT/admin/users`, `ALAMAT/admin/whatsapp-logs`, dan `ALAMAT/admin/whatsapp/connect` sebagai kasir. Ketiganya **403**.
 - [ ] **7.9** Sebagai pemilik, edit Kasir Uji dan **centang outlet kedua**. Setelah kasir login ulang, ia masuk ke **Outlet saya** yang berisi 2 outlet.
 - [ ] **7.10** Sebagai pemilik, matikan **Akun aktif** Kasir Uji lalu simpan. Di jendela kasir, klik menu apa saja. Kasir otomatis keluar dengan pesan akun dinonaktifkan, dan tidak bisa login lagi.
 - [ ] **7.11** Sebagai pemilik, buka akun Anda sendiri di **Akun admin**. Peran dan status aktif tidak bisa diubah (terkunci).
@@ -159,6 +159,7 @@ Gunakan **jendela incognito/private** untuk login sebagai kasir, supaya login pe
 - [ ] **8.3** Cari nomor antrean atau nomor WhatsApp (misalnya `6282000000001`). Hasilnya sesuai.
 - [ ] **8.4** **Dashboard**: angka Antrean aktif, Tamu hari ini, dan Rata-rata tunggu sesuai dengan uji coba.
 - [ ] **8.5** **Log WhatsApp**: muncul peringatan bahwa WhatsApp belum aktif. Semua pesan masuk (↓ Masuk) dan keluar (↑ Keluar) dari uji coba tercatat, dan pesan lengkap terbuka saat diklik.
+- [ ] **8.6** **Hubungkan WhatsApp**: halaman menampilkan status gateway (misalnya **Gateway tidak berjalan** atau **Belum dikonfigurasi** kalau wa-gateway tidak dijalankan) dan peringatan risiko Baileys.
 
 ---
 

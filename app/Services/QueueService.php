@@ -99,6 +99,9 @@ class QueueService
                 return $existing;
             }
             $number = $this->generateQueueNumber($restaurant);
+            // Every active ticket is ahead of the new one. The sign-up confirmation already shows that
+            // count, so a "tinggal 3" / "tinggal 1" threshold reached at sign-up is marked as done.
+            $ahead = $this->getActiveQueueCount($restaurant);
 
             return QueueTicket::query()->create([
                 'restaurant_id' => $restaurant->id,
@@ -109,6 +112,8 @@ class QueueService
                 'sequence_number' => $number['sequence_number'],
                 'status' => QueueTicket::STATUS_WAITING,
                 'joined_at' => now(),
+                'three_ahead_notified_at' => $ahead < 3 ? now() : null,
+                'one_ahead_notified_at' => $ahead < 1 ? now() : null,
             ]);
         });
     }

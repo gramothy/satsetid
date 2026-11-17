@@ -2,10 +2,26 @@
 
 return [
     'enabled' => (bool) env('WHATSAPP_ENABLED', false),
-    // "meta" (WhatsApp Cloud API), "twilio" (Twilio WhatsApp API) or "greenapi" (GREEN-API, unofficial linked device).
-    'provider' => env('WHATSAPP_PROVIDER', 'meta'),
-    // Public WhatsApp number customers chat with. With Twilio/GREEN-API this is also the sender number.
+    // "baileys" (wa-gateway, default), "meta" (WhatsApp Cloud API), "twilio" (Twilio WhatsApp API)
+    // or "greenapi" (GREEN-API). Baileys and GREEN-API are unofficial linked devices; see README.
+    'provider' => env('WHATSAPP_PROVIDER', 'baileys'),
+    // Public WhatsApp number customers chat with (Meta/Twilio/GREEN-API). With Twilio/GREEN-API this is also
+    // the sender number. Baileys ignores it and uses the number linked in the gateway.
     'phone_number' => env('WHATSAPP_PHONE_NUMBER'),
+
+    // Baileys: the local wa-gateway (Node) holds the WhatsApp session.
+    'baileys' => [
+        // Base URL of wa-gateway. It only listens on 127.0.0.1.
+        'gateway_url' => env('WHATSAPP_GATEWAY_URL', 'http://127.0.0.1:3100'),
+        // Laravel -> gateway (Authorization: Bearer). Same value as WA_GATEWAY_TOKEN in wa-gateway/.env.
+        'gateway_token' => env('WHATSAPP_GATEWAY_TOKEN'),
+        // Gateway -> Laravel webhook HMAC key. Same value as WA_WEBHOOK_SECRET in wa-gateway/.env.
+        'webhook_secret' => env('WHATSAPP_WEBHOOK_SECRET'),
+        // Seconds to wait for POST /send. The gateway always answers within about 25 seconds.
+        'timeout' => (int) env('WHATSAPP_GATEWAY_TIMEOUT', 30),
+        // Delivery attempts while the gateway answers 429/5xx or cannot be reached; then "failed".
+        'max_attempts' => 5,
+    ],
 
     // Meta Cloud API
     'access_token' => env('WHATSAPP_ACCESS_TOKEN'),
@@ -30,7 +46,7 @@ return [
         'webhook_token' => env('GREENAPI_WEBHOOK_TOKEN'),
     ],
 
-    // Meta: approved template names. Twilio: approved Content SIDs (HX...).
+    // Meta: approved template names. Twilio: approved Content SIDs (HX...). Not used by Baileys or GREEN-API.
     'template_language' => env('WHATSAPP_TEMPLATE_LANGUAGE', 'id'),
     'templates' => [
         'three_ahead' => env('WHATSAPP_TEMPLATE_THREE_AHEAD'),
