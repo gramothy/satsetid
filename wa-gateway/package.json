@@ -1,0 +1,23 @@
+{
+    "name": "satset-wa-gateway",
+    "version": "1.0.0",
+    "private": true,
+    "description": "Gateway WhatsApp (Baileys) untuk SatSet. Hanya mendengarkan di 127.0.0.1.",
+    "type": "module",
+    "main": "src/index.js",
+    "engines": {
+        "node": ">=20.12"
+    },
+    "scripts": {
+        "start": "node src/index.js",
+        "test": "node --test",
+        "webhooks:replay": "node src/replay-webhooks.js"
+    },
+    "dependencies": {
+        "@whiskeysockets/baileys": "7.0.0-rc14",
+        "pino": "^9.6.0"
+    },
+    "optionalDependencies": {
+        "qrcode-terminal": "^0.12.0"
+    }
+}

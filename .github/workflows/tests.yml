@@ -1,0 +1,74 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  laravel:
+    name: Laravel (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # composer.lock is resolved for PHP 8.3 (config.platform.php); 8.4 checks the next version.
+        php: ['8.3', '8.4']
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, pdo_sqlite, sqlite3, curl, fileinfo, openssl
+          coverage: none
+
+      - name: Validate composer.json and composer.lock
+        run: composer validate --no-check-publish
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Prepare .env
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      # SQLite in memory, WhatsApp settings locked in phpunit.xml, all HTTP faked.
+      - name: Run tests
+        run: php artisan test
+
+  wa-gateway:
+    name: wa-gateway (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24']
+    defaults:
+      run:
+        working-directory: wa-gateway
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: wa-gateway/package-lock.json
+
+      # wa-gateway/.npmrc: no install scripts, no peer dependencies (sharp).
+      - name: Install dependencies
+        run: npm ci
+
+      # Pure functions, pacing with fake timers, webhook queue, HTTP and a fake Baileys socket.
+      # Nothing connects to WhatsApp.
+      - name: Run tests
+        run: npm test

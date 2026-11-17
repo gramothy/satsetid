@@ -259,3 +259,28 @@ h1, h2, h3, p { margin: 0; }
 @media (max-width: 760px) {
     .admin-choice-group, .admin-checkbox-grid { grid-template-columns: 1fr; }
 }
+
+/* WhatsApp connect (wa-gateway / Baileys) */
+.admin-wa-warnings ul { margin: 6px 0 8px; padding-left: 20px; font-weight: 500; }
+.admin-wa-warnings a { text-decoration: underline; }
+.admin-wa-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
+.admin-wa-status { display: grid; gap: 16px; }
+.admin-wa-status .admin-panel-heading { margin-bottom: 0; }
+.admin-wa-status .admin-panel-heading .admin-badge { align-self: flex-start; }
+.admin-wa-status form { justify-self: start; }
+.admin-wa-qr { display: block; width: min(100%, 280px); height: auto; aspect-ratio: 1; margin: 0 auto; border: 1px solid var(--line); border-radius: var(--radius); background: white; }
+.admin-wa-steps { display: grid; gap: 6px; margin: 0; padding-left: 20px; color: var(--muted); }
+.admin-wa-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; }
+.admin-wa-facts div { padding: 12px 14px; border-radius: 10px; background: var(--bg); }
+.admin-wa-facts dt { font-size: 13px; color: var(--muted); }
+.admin-wa-facts dd { margin: 2px 0 0; font-size: 20px; font-weight: 700; }
+.admin-wa-risk h2 { margin-bottom: 10px; }
+.admin-wa-risk ul { display: grid; gap: 8px; margin: 0; padding-left: 18px; font-size: 14px; color: var(--muted); }
+.admin-wa-risk strong { color: var(--red); }
+.admin-wa-status code, .admin-wa-status kbd, .admin-notice code { padding: 1px 5px; border-radius: 5px; background: var(--grey-soft); font: .9em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+@media (max-width: 1000px) {
+    .admin-wa-layout { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+    .admin-wa-facts { grid-template-columns: 1fr; }
+}

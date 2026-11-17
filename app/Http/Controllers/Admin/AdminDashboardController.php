@@ -6,11 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\QueueTicket;
 use App\Models\Restaurant;
 use App\Services\QueueService;
+use App\Services\WhatsAppMonitor;
 use Illuminate\Http\Request;
 
 class AdminDashboardController extends Controller
 {
-    public function __invoke(Request $request, QueueService $queueService)
+    public function __invoke(Request $request, QueueService $queueService, WhatsAppMonitor $monitor)
     {
         $restaurants = $request->user()->accessibleRestaurants()
             ->orderBy('name')
@@ -39,6 +40,8 @@ class AdminDashboardController extends Controller
             'activeQueue' => $tickets()->whereIn('status', [QueueTicket::STATUS_WAITING, QueueTicket::STATUS_CALLED])->count(),
             'customersToday' => $tickets()->whereDate('joined_at', today())->sum('party_size'),
             'averageWaiting' => $averageWaiting,
+            // Owners only: may ask the gateway, at most once per 30 seconds (cached state).
+            'whatsappWarnings' => $request->user()->isOwner() ? $monitor->dashboardWarnings() : [],
         ]);
     }
 }

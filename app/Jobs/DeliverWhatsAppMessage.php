@@ -13,7 +13,8 @@ class DeliverWhatsAppMessage implements ShouldQueue
 
     public int $tries = 1;
 
-    public int $timeout = 30;
+    // Longer than the HTTP timeout to wa-gateway (30 s), so the worker never kills a send mid-request.
+    public int $timeout = 45;
 
     public function __construct(public int $messageId) {}
 
