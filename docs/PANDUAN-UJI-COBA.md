@@ -60,11 +60,11 @@ Semua langkah ini di **terminal 2 (tinker)**. Ganti `SLUG` dengan slug Anda.
 | ☐ **2.1** | `$wa('halo', '6289999999999');` | Bot meminta scan QR dulu (belum ada outlet terpilih) |
 | ☐ **2.2** | `$wa('ANTRE asal-asalan');` | "Outlet tidak ditemukan" |
 | ☐ **2.3** | `$wa('ANTRE SLUG');` | Sapaan, jumlah antrean saat ini, estimasi, dan pertanyaan jumlah tamu |
-| ☐ **2.4** | `$wa('0');` lalu `$wa('99');` lalu `$wa('abc');` | Ketiganya ditolak: "Jumlah tamu harus 1 sampai …" |
-| ☐ **2.5** | `$wa('2');` | Ringkasan konfirmasi, diminta balas YA atau BATAL |
-| ☐ **2.6** | `$wa('BATAL');` | "Pendaftaran belum dibuat", diminta jumlah tamu lagi |
-| ☐ **2.7** | `$wa('3');` lalu `$wa('YA');` | **"Berhasil!"** beserta nomor antrean, status **Menunggu**, dan link **Lihat antrean** |
-| ☐ **2.8** | `$wa('ANTRE SLUG');` (nomor yang sama) | "Anda sudah memiliki antrean aktif", **tidak** membuat nomor baru |
+| ☐ **2.4** | `$wa('0');` lalu `$wa('99');` lalu `$wa('abc');` | Ketiganya ditolak: "Mohon balas jumlah orang dengan angka 1 sampai …" |
+| ☐ **2.5** | `$wa('2 orang');` | "Mohon periksa kembali" berisi outlet dan jumlah orang, diminta balas YA atau BATAL |
+| ☐ **2.6** | `$wa('batal');` | "Baik, nomor antrean belum dibuat", diminta jumlah orang lagi |
+| ☐ **2.7** | `$wa('3');` lalu `$wa('iya');` | **"✅ Berhasil!"** beserta nomor antrean, jumlah antrean di depan, perkiraan tunggu, dan link **Pantau antrean** |
+| ☐ **2.8** | `$wa('ANTRE SLUG');` (nomor yang sama) | "Anda sudah punya nomor antrean aktif" beserta status antrean, **tidak** membuat nomor baru |
 
 - [ ] **2.9** Di HP, halaman outlet (dari langkah 1.4) menampilkan jumlah **Sedang menunggu** yang bertambah tanpa di-refresh.
 - [ ] **2.10** Batalkan tiket uji ini supaya tidak mengganggu bagian berikutnya: buka **Admin → antrean outlet**, klik **Batalkan** pada nomor tadi, lalu konfirmasi.
@@ -90,12 +90,12 @@ Skenario: 4 customer lain mendaftar duluan, lalu **Anda** mendaftar paling akhir
 - [ ] **3.5** Klik **Panggil berikutnya**. Nomor pertama muncul besar di panel gelap **Sedang dilayani**, dan barisnya di tabel diberi warna.
 - [ ] **3.6** Klik **Tandai selesai**.
   - Di HP (tunggu ±10 detik): **Antrean di depan** berkurang menjadi **3**.
-  - Di tinker, `$inbox();` menampilkan pesan **"Tinggal 3 antrean lagi…"**.
-- [ ] **3.7** Klik **Panggil berikutnya**, lalu **Lewati**. Nomor itu berstatus **Dilewati** di Riwayat antrean.
-- [ ] **3.8** Klik **Panggil berikutnya**, lalu **Tandai selesai**. Di HP: **Antrean di depan: 1**. `$inbox();` menampilkan **"Tinggal 1 antrean lagi…"**.
+  - Di tinker, `$inbox();` menampilkan pesan **"⏳ Tinggal 3 antrean lagi"**.
+- [ ] **3.7** Klik **Panggil berikutnya**, lalu **Lewati**. Nomor itu berstatus **Dilewati** di Riwayat antrean, dan customer-nya menerima pesan "… dilewati karena belum hadir saat dipanggil" (lihat di Log WhatsApp).
+- [ ] **3.8** Klik **Panggil berikutnya**, lalu **Tandai selesai**. Di HP: **Antrean di depan: 1**. `$inbox();` menampilkan **"🔔 Tinggal 1 antrean lagi"**.
 - [ ] **3.9** Klik **Panggil berikutnya**, lalu **Tandai selesai**, lalu **Panggil berikutnya** lagi (sekarang giliran Anda).
   - Di HP, kartu tiket berubah **gelap dengan nomor hijau terang** dan status **Giliran Anda**.
-  - `$inbox();` menampilkan **"Giliran … sudah tiba!"**.
+  - `$inbox();` menampilkan **"📣 Giliran … sudah tiba!"**.
   - Halaman outlet di HP menampilkan nomor Anda di **Sedang dilayani**.
 - [ ] **3.10** Klik **Tandai selesai**. Di HP, tiket menjadi abu-abu dengan status **Selesai**, dan tombol batal hilang.
 - [ ] **3.11** Pastikan setiap notifikasi hanya muncul **sekali** di `$inbox();`, tidak ganda.

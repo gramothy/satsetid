@@ -1,19 +1,26 @@
 <?php
 
-use Illuminate\Foundation\Inspiring;
-use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Schedule;
+use App\Models\User;
 use App\Models\WhatsappLog;
 use App\Services\WhatsAppMonitor;
 use App\Services\WhatsAppService;
+use Illuminate\Foundation\Inspiring;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
 Artisan::command('whatsapp:send-pending', function (WhatsAppService $whatsapp): void {
-    WhatsappLog::query()->where('direction', 'outbound')->where('status', 'pending')
-        ->orderBy('id')->limit(100)->get()->each(fn (WhatsappLog $log) => $whatsapp->deliver($log));
+    // A plain loop: Collection::each() stops at the first callback that returns false, and
+    // deliver() returns false for every message that was not sent (skipped, failed, retry later).
+    $messages = WhatsappLog::query()->where('direction', 'outbound')->where('status', 'pending')
+        ->orderBy('id')->limit(100)->get();
+    foreach ($messages as $log) {
+        $whatsapp->deliver($log);
+    }
     $this->info('Pending WhatsApp messages processed.');
 })->purpose('Deliver durable WhatsApp outbox messages');
 
@@ -39,7 +46,7 @@ Schedule::command('whatsapp:monitor')->everyMinute()->withoutOverlapping();
 
 Artisan::command('satset:admin {email} {--name=SatSet Admin}', function (): void {
     $email = $this->argument('email');
-    if (! filter_var($email, FILTER_VALIDATE_EMAIL) || \App\Models\User::where('email', $email)->exists()) {
+    if (! filter_var($email, FILTER_VALIDATE_EMAIL) || User::where('email', $email)->exists()) {
         $this->error('Email tidak valid atau akun sudah tersedia. Akun existing tidak diubah.');
 
         return;
@@ -50,7 +57,7 @@ Artisan::command('satset:admin {email} {--name=SatSet Admin}', function (): void
 
         return;
     }
-    \App\Models\User::create(['name' => $this->option('name'), 'email' => $email, 'password' => \Illuminate\Support\Facades\Hash::make($password), 'role' => 'owner', 'active' => true]);
+    User::create(['name' => $this->option('name'), 'email' => $email, 'password' => Hash::make($password), 'role' => 'owner', 'active' => true]);
     $this->info('Akun pemilik SatSet dibuat. Akun admin outlet dibuat dari menu Akun admin.');
 })->purpose('Create a SatSet owner account without a default password');
 

@@ -13,13 +13,24 @@ class QueueWhatsAppNotificationService
     public function notifyCalled(QueueTicket $ticket): void
     {
         if (! $ticket->called_notified_at) {
-            $this->notify($ticket, 'called', "Giliran {$ticket->queue_number} sudah tiba!\nSilakan menuju {$ticket->restaurant->name}.", 'called_notified_at');
+            $this->notify($ticket, 'called', "📣 *Giliran {$ticket->queue_number} sudah tiba!*\n\n"
+                ."Silakan menuju *{$ticket->restaurant->name}* dan tunjukkan nomor ini ke petugas.", 'called_notified_at');
         }
     }
 
     public function notifyCancelled(QueueTicket $ticket): void
     {
-        $this->notify($ticket, 'cancelled', "Antrean {$ticket->queue_number} di {$ticket->restaurant->name} telah dibatalkan.");
+        $this->notify($ticket, 'cancelled', "Nomor antrean *{$ticket->queue_number}* di {$ticket->restaurant->name} telah dibatalkan.\n\n"
+            .'Untuk mengantre lagi, scan QR SatSet di outlet.');
+    }
+
+    /**
+     * The counter skipped a called customer who was not there (no-show).
+     */
+    public function notifySkipped(QueueTicket $ticket): void
+    {
+        $this->notify($ticket, 'skipped', "Nomor antrean *{$ticket->queue_number}* di {$ticket->restaurant->name} dilewati karena belum hadir saat dipanggil.\n\n"
+            .'Jika Anda sudah di lokasi, silakan temui petugas outlet.');
     }
 
     /**
@@ -47,12 +58,15 @@ class QueueWhatsAppNotificationService
             if ($ahead <= 1) {
                 if (! $ticket->one_ahead_notified_at) {
                     $text = $ahead === 1
-                        ? "Tinggal 1 antrean lagi sebelum {$ticket->queue_number}.\nSilakan bersiap menuju {$restaurant->name}."
-                        : "Giliran {$ticket->queue_number} berikutnya, tidak ada antrean lagi di depan Anda.\nSilakan bersiap menuju {$restaurant->name}.";
+                        ? "🔔 *Tinggal 1 antrean lagi*\n\nNomor *{$ticket->queue_number}* dipanggil setelah satu antrean lagi.\n"
+                            ."Silakan menuju *{$restaurant->name}* sekarang agar tidak terlewat."
+                        : "🔔 *Anda berikutnya*\n\nNomor *{$ticket->queue_number}* akan dipanggil berikutnya.\n"
+                            ."Silakan menuju *{$restaurant->name}* sekarang.";
                     $this->notify($ticket, 'one_ahead', $text, 'one_ahead_notified_at');
                 }
             } elseif ($ahead <= 3 && ! $ticket->three_ahead_notified_at) {
-                $this->notify($ticket, 'three_ahead', "Tinggal {$ahead} antrean lagi sebelum giliran {$ticket->queue_number} di {$restaurant->name}.", 'three_ahead_notified_at');
+                $this->notify($ticket, 'three_ahead', "⏳ *Tinggal {$ahead} antrean lagi*\n\n"
+                    ."Nomor *{$ticket->queue_number}* di {$restaurant->name} sebentar lagi dipanggil.\nSilakan mulai menuju outlet.", 'three_ahead_notified_at');
             }
         }
     }

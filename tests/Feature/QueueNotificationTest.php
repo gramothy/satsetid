@@ -67,7 +67,7 @@ class QueueNotificationTest extends TestCase
 
         $notice = WhatsappLog::query()->where('event_key', "ticket:{$fifth->id}:three_ahead")->firstOrFail();
         $this->assertSame('sent', $notice->status);
-        $this->assertSame('Tinggal 2 antrean lagi sebelum giliran A-005 di Ayam Bakar Nusantara.', $notice->message);
+        $this->assertSame("⏳ *Tinggal 2 antrean lagi*\n\nNomor *A-005* di Ayam Bakar Nusantara sebentar lagi dipanggil.\nSilakan mulai menuju outlet.", $notice->message);
         $this->assertNotNull($fifth->fresh()->three_ahead_notified_at);
         $this->assertTrue($this->notified($fourth, 'one_ahead'), 'A-004 sekarang tinggal 1');
 
@@ -89,7 +89,10 @@ class QueueNotificationTest extends TestCase
 
         // A-005: 4 ahead -> 3 ahead ("tinggal 3") -> 2 ahead -> 1 ahead ("tinggal 1").
         $this->assertSame(
-            ['Tinggal 3 antrean lagi sebelum giliran A-005 di Ayam Bakar Nusantara.', "Tinggal 1 antrean lagi sebelum A-005.\nSilakan bersiap menuju Ayam Bakar Nusantara."],
+            [
+                "⏳ *Tinggal 3 antrean lagi*\n\nNomor *A-005* di Ayam Bakar Nusantara sebentar lagi dipanggil.\nSilakan mulai menuju outlet.",
+                "🔔 *Tinggal 1 antrean lagi*\n\nNomor *A-005* dipanggil setelah satu antrean lagi.\nSilakan menuju *Ayam Bakar Nusantara* sekarang agar tidak terlewat.",
+            ],
             WhatsappLog::query()->where('queue_ticket_id', $fifth->id)->orderBy('id')->pluck('message')->all(),
         );
     }
@@ -135,7 +138,7 @@ class QueueNotificationTest extends TestCase
         $this->flush();
 
         $notice = WhatsappLog::query()->where('event_key', "ticket:{$second->id}:one_ahead")->firstOrFail();
-        $this->assertSame("Giliran A-002 berikutnya, tidak ada antrean lagi di depan Anda.\nSilakan bersiap menuju Ayam Bakar Nusantara.", $notice->message);
+        $this->assertSame("🔔 *Anda berikutnya*\n\nNomor *A-002* akan dipanggil berikutnya.\nSilakan menuju *Ayam Bakar Nusantara* sekarang.", $notice->message);
         $this->assertSame('sent', $notice->status);
     }
 

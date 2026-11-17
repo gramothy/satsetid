@@ -9,8 +9,8 @@
     <title>{{ $title ?? 'SatSet Admin' }}</title>
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700,800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ asset('css/admin.css') }}?v=ui-9">
-    <script src="{{ asset('js/admin.js') }}?v=ui-9" defer></script>
+    <link rel="stylesheet" href="{{ asset('css/admin.css') }}?v=ui-10">
+    <script src="{{ asset('js/admin.js') }}?v=ui-10" defer></script>
 </head>
 <body class="admin-body">
     <div class="admin-shell">
