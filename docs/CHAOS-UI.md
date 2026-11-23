@@ -46,7 +46,21 @@ Semua perbaikan berupa CSS. Tidak ada perubahan logika.
 - Pelanggaran teks meluap dari kotaknya: 0, selain elemen yang memang disembunyikan untuk pembaca layar (`sr-only`) dan tautan lewati navigasi.
 - `php artisan test`: 158/158 lulus.
 
+## Paginasi daftar antrean admin
+
+Daftar tiket aktif di "Kelola antrean" sekarang dipaginasi 25 tiket per halaman. Urutan tetap berdasarkan nomor antrean. Tombol "Panggil berikutnya", "Tandai selesai", "Lewati", dan "Batalkan" tidak berubah, karena logikanya ada di `QueueService`, bukan di tampilan tabel.
+
+Pengukuran dengan 400 tiket aktif di satu outlet, dalam satu sesi login:
+
+| | Sebelum | Sesudah |
+| --- | --- | --- |
+| Node DOM | 12.612 | 1.089 |
+| Layout (median, 390 px) | 30 ms | 14 ms |
+| Style (median, 390 px) | 7 ms | 2 ms |
+
+Tes: `tests/Feature/AdminQueuePaginationTest.php` (urutan halaman, halaman kedua, dan tidak ada paginasi untuk antrean pendek). Label paginasi dibuat Bahasa Indonesia di `lang/en/pagination.php`, karena APP_LOCALE tetap `en`.
+
 ## Yang belum diperbaiki
 
-- **Antrean 400 tiket di satu halaman admin.** Halaman memuat semua tiket aktif sekaligus, sekitar 12.600 node DOM di 390 px, dan layout sekitar 30 ms per render. Ini tidak bisa diperbaiki dengan CSS. `content-visibility` pada baris tabel sudah dicoba dan tidak mengubah angka, jadi dihapus lagi. Perbaikannya ada di controller dan view: paginasi atau batas tampilan. Itu mengubah perilaku, jadi perlu keputusan pemilik.
 - Tes ini belum dijalankan di ponsel fisik.
+- Nomor telepon di tabel pecah di tengah kata pada layar sempit (`overflow-wrap: anywhere`). Ini bisa dibuat tidak terpecah dengan `white-space: nowrap`, tetapi itu melebarkan tabel. Belum diubah.

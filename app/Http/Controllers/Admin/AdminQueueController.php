@@ -14,10 +14,12 @@ class AdminQueueController extends Controller
     {
         $current = $restaurant->queueTickets()->where('status', QueueTicket::STATUS_CALLED)->orderBy('sequence_number')->first();
         $waiting = $restaurant->queueTickets()->where('status', QueueTicket::STATUS_WAITING)->orderBy('sequence_number')->get();
+        // Paginated so a long queue does not render hundreds of rows at once. The order is unchanged.
         $activeTickets = $restaurant->queueTickets()
             ->whereIn('status', [QueueTicket::STATUS_CALLED, QueueTicket::STATUS_WAITING])
             ->orderBy('sequence_number')
-            ->get();
+            ->paginate(25)
+            ->withQueryString();
         $snapshot = $queueService->getRestaurantSnapshot($restaurant);
 
         return view('admin.queue.show', compact('restaurant', 'current', 'waiting', 'activeTickets', 'snapshot'));

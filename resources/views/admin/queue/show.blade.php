@@ -72,5 +72,8 @@
                 </tbody>
             </table>
         </div>
+        @if ($activeTickets->hasPages())
+            <div class="admin-pagination">{{ $activeTickets->links() }}</div>
+        @endif
     </section>
 </x-layouts.admin>
