@@ -16,7 +16,7 @@
                 <p class="eyebrow">Nomor antrean Anda</p>
                 <span class="pill pill-status" data-ticket-status>{{ $ticket->status === 'called' ? 'Giliran Anda' : $ticket->statusLabel() }}</span>
             </div>
-            <div class="ticket-number">{{ $ticket->queue_number }}</div>
+            <h1 class="ticket-number">{{ $ticket->queue_number }}</h1>
             <p class="ticket-meta">{{ $ticket->restaurant->name }}<br>{{ $ticket->party_size }} orang &middot; {{ $ticket->joined_at?->format('d M Y, H:i') }}</p>
             <div class="ticket-divider" aria-hidden="true"></div>
             <div class="stats">
@@ -32,5 +32,5 @@
             <form class="center" method="post" action="{{ route('queue.cancel', $ticket->public_token) }}" data-ticket-cancel onsubmit="return confirm('Batalkan antrean ini?')">@csrf<button class="button button-ghost-danger" type="submit">Batalkan antrean</button></form>
         @endif
     </section>
-    <script src="{{ asset('js/queue-poll.js') }}?v=ui-9" defer></script>
+    <script src="{{ asset('js/queue-poll.js') }}?v=ui-10" defer></script>
 </x-layouts.customer>

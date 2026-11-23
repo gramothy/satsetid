@@ -39,7 +39,7 @@
             </div>
         </div>
 
-        <div class="admin-table-wrap">
+        <div class="admin-table-wrap" tabindex="0">
             <table class="admin-table">
                 <thead>
                     <tr>

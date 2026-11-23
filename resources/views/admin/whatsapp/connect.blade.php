@@ -18,7 +18,7 @@
             @include('admin.whatsapp.partials.connect-status')
         </section>
 
-        <aside class="admin-panel admin-wa-risk">
+        <aside class="admin-panel admin-wa-risk" aria-label="Catatan keamanan WhatsApp">
             <h2>Sebelum menyambungkan</h2>
             <ul>
                 <li><strong>Baileys bukan API resmi WhatsApp</strong> dan melanggar ketentuan layanan WhatsApp. Nomor yang dipakai bisa dibatasi atau diblokir sewaktu-waktu.</li>

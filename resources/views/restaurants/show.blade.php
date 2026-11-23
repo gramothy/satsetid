@@ -9,18 +9,6 @@
             <span class="pill {{ $snapshot['available'] ? 'pill-open' : 'pill-closed' }}" data-outlet-availability>{{ $snapshot['available'] ? 'Antrean sedang dibuka' : 'Antrean sedang ditutup' }}</span>
         </header>
 
-        <section class="card" aria-label="Kondisi antrean">
-            <div class="serving">
-                <span>Sedang dilayani</span>
-                <strong data-outlet-current>{{ $snapshot['current_number'] ?? 'Belum ada' }}</strong>
-            </div>
-            <div class="stats">
-                <div class="stat"><span>Sedang menunggu</span><strong><span data-outlet-waiting>{{ $snapshot['waiting_count'] }}</span> <small>kelompok</small></strong></div>
-                <div class="stat"><span>Estimasi tunggu</span><strong>&plusmn;<span data-outlet-estimate>{{ $snapshot['estimated_wait'] }}</span> <small>menit</small></strong></div>
-            </div>
-            <p class="live-note" data-live-note>Estimasi dapat berubah sesuai pelayanan outlet.</p>
-        </section>
-
         <section class="cta">
             @if($webSignup && $myTicket)
                 <div class="card my-ticket">
@@ -57,6 +45,18 @@
             @else
                 <p class="alert">Pendaftaran lewat WhatsApp belum tersedia. Silakan hubungi staf outlet.</p>
             @endif
+        </section>
+
+        <section class="card" aria-label="Kondisi antrean">
+            <div class="serving">
+                <span>Sedang dilayani</span>
+                <strong data-outlet-current>{{ $snapshot['current_number'] ?? 'Belum ada' }}</strong>
+            </div>
+            <div class="stats">
+                <div class="stat"><span>Sedang menunggu</span><strong><span data-outlet-waiting>{{ $snapshot['waiting_count'] }}</span> <small>kelompok</small></strong></div>
+                <div class="stat"><span>Estimasi tunggu</span><strong>&plusmn;<span data-outlet-estimate>{{ $snapshot['estimated_wait'] }}</span> <small>menit</small></strong></div>
+            </div>
+            <p class="live-note" data-live-note>Estimasi dapat berubah sesuai pelayanan outlet.</p>
         </section>
 
         <section class="card">

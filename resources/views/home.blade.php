@@ -1,4 +1,7 @@
 <x-layouts.customer title="SatSet | Virtual Queue for F&B">
+    <x-slot name="head">
+        <link rel="preload" href="{{ asset('images/satset-food-hero.webp') }}" as="image" type="image/webp" fetchpriority="high">
+    </x-slot>
     <section class="home-hero">
         <div class="home-hero-inner">
             <p class="eyebrow eyebrow-light">Virtual queue untuk F&amp;B</p>

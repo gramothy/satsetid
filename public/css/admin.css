@@ -1,4 +1,12 @@
 /* SatSet admin UI. Shares tokens with the customer UI (satset.css). */
+@font-face {
+    font-family: "Inter";
+    src: url("/fonts/inter-latin-wght.woff2") format("woff2");
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
+
 :root {
     --bg: #f3f7f7;
     --surface: #ffffff;
@@ -117,7 +125,7 @@ h1, h2, h3, p { margin: 0; }
 
 /* Buttons */
 .admin-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 16px; border: 1px solid transparent; border-radius: 10px; font-weight: 700; line-height: 1.2; white-space: nowrap; background: var(--surface); border-color: var(--line); transition: background-color 150ms var(--ease), transform 150ms var(--ease); }
-.admin-button:active:not(:disabled) { transform: scale(.98); }
+.admin-button:active:not(:disabled) { transform: scale(.97); }
 .admin-button-primary { background: var(--brand); border-color: var(--brand); color: white; }
 .admin-button-secondary { background: var(--brand-soft); border-color: transparent; color: var(--brand-strong); }
 .admin-button-ghost { background: transparent; }
@@ -143,7 +151,7 @@ h1, h2, h3, p { margin: 0; }
 .admin-form { display: grid; gap: 16px; }
 .admin-form label { display: grid; gap: 6px; font-size: 14px; font-weight: 600; }
 .admin-form input:not([type="checkbox"]):not([type="radio"]), .admin-form textarea, .admin-form select, .admin-filter-bar input, .admin-filter-bar select {
-    width: 100%; min-height: 42px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: white; font-size: 15px; font-weight: 400;
+    width: 100%; min-height: 44px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: white; font-size: 16px; font-weight: 400;
 }
 .admin-form input:focus, .admin-form textarea:focus, .admin-filter-bar input:focus, .admin-filter-bar select:focus { outline: 0; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(46, 109, 109, .18); }
 .admin-form input[readonly] { background: var(--bg); color: var(--muted); }
@@ -185,7 +193,8 @@ h1, h2, h3, p { margin: 0; }
 .admin-pagination .hidden { display: none; }
 
 /* Login */
-.admin-login-body { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: 20px; background: var(--dark); }
+.admin-login-body { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: 20px; padding-top: calc(20px + env(safe-area-inset-top)); padding-bottom: calc(20px + env(safe-area-inset-bottom)); background: var(--dark); }
+.admin-login-main { width: min(400px, 100%); }
 .admin-login-card { width: min(400px, 100%); display: grid; gap: 24px; padding: 32px; background: var(--surface); border-radius: 16px; box-shadow: 0 24px 64px rgba(0, 0, 0, .3); }
 .admin-login-head { display: grid; gap: 6px; }
 .admin-login-head .admin-brand-mark { flex-shrink: 0; width: 34px; height: 34px; border-radius: 9px; object-fit: cover; }
@@ -228,6 +237,17 @@ h1, h2, h3, p { margin: 0; }
     .admin-form-footer .admin-button { flex: 1; }
 }
 
+/* Touch screens: controls get a 44px hit area, the minimum that feels reliable with a thumb. */
+@media (pointer: coarse) {
+    .admin-button, .admin-button-small, .admin-text-button, .admin-link, .admin-logout button { min-height: 44px; }
+    .admin-button-small { padding: 0 14px; }
+    .admin-text-button, .admin-link, .admin-logout button { display: inline-flex; align-items: center; }
+    .admin-nav a, .admin-brand, .admin-back { min-height: 44px; }
+    .admin-back { display: inline-flex; align-items: center; }
+    .admin-pagination a, .admin-pagination span[aria-current="page"] span, .admin-pagination span[aria-disabled="true"] span { min-width: 44px; min-height: 44px; }
+    .admin-form input[type="checkbox"], .admin-form input[type="radio"], .admin-switch input, .admin-choice input { width: 20px; height: 20px; }
+}
+
 @media print {
     .no-print, .admin-sidebar { display: none !important; }
     .admin-shell, .admin-qr-layout { display: block !important; }
@@ -237,7 +257,8 @@ h1, h2, h3, p { margin: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { transition: none !important; }
+    *, *::before, *::after { animation: none !important; transition-property: color, background-color, border-color !important; }
+    .admin-button:active:not(:disabled) { transform: none; }
 }
 
 /* Accounts */
@@ -285,3 +306,18 @@ h1, h2, h3, p { margin: 0; }
 @media (max-width: 760px) {
     .admin-wa-facts { grid-template-columns: 1fr; }
 }
+
+/* Ketahanan terhadap data panjang: nama outlet, nama dan email akun, dan deskripsi yang tidak punya spasi.
+   Teks boleh dipatahkan di mana saja, dan kolom tabel boleh menyusut, sehingga sel tidak menimpa kolom di sebelahnya. */
+.admin-content, .admin-panel, .admin-panel > *, .admin-form-grid > *, .admin-stats > *, .admin-console-stats > *, .admin-queue-console > * { min-width: 0; }
+.admin-table td, .admin-table th { min-width: 0; overflow-wrap: anywhere; }
+.admin-table th { white-space: normal; }
+.admin-outlet-list, .admin-sub, .admin-panel h2, .admin-page-header p, .admin-panel-heading p, .admin-now-serving p, .admin-now-serving strong, .admin-stats strong, .admin-console-stats strong, .admin-notice, .admin-hint, .admin-error, .admin-logout strong, .admin-brand span, .admin-button, .admin-text-button, .admin-link {
+    overflow-wrap: anywhere;
+    unicode-bidi: plaintext;
+}
+.admin-badge { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.admin-button { max-width: 100%; white-space: normal; text-align: center; }
+.admin-outlet-list { max-width: 100%; }
+.admin-form input, .admin-form textarea, .admin-form select { max-width: 100%; }
+
