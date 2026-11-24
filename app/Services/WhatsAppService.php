@@ -202,7 +202,7 @@ class WhatsAppService
         }
 
         return 'https://wa.me/'.$phone.'?'.http_build_query(
-            ['text' => 'ANTRE '.$restaurant->slug], '', '&', PHP_QUERY_RFC3986
+            ['text' => "Saya mau antre di {$restaurant->name} ({$restaurant->slug})"], '', '&', PHP_QUERY_RFC3986
         );
     }
 
@@ -557,7 +557,7 @@ class WhatsAppService
         }
 
         // Twilio can only report delivery to a publicly reachable HTTPS address.
-        $appUrl = rtrim((string) config('app.url'), '/');
+        $appUrl = app(\App\Services\PublicUrl::class)->base();
         if (str_starts_with($appUrl, 'https://')) {
             $params['StatusCallback'] = $appUrl.route('whatsapp.twilio.status', [], false);
         }

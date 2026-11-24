@@ -42,7 +42,7 @@ class GreenApiWhatsAppTest extends TestCase
     {
         $restaurant = $this->restaurant();
         $this->get(route('outlets.whatsapp', $restaurant->slug))
-            ->assertRedirect('https://wa.me/6281200001111?text=ANTRE%20ayam-bakar');
+            ->assertRedirect('https://wa.me/6281200001111?text=Saya%20mau%20antre%20di%20Ayam%20Bakar%20Nusantara%20%28ayam-bakar%29');
     }
 
     public function test_full_chatbot_flow_over_greenapi(): void

@@ -44,7 +44,7 @@
                                 @endif
                             </td>
                             <td>{{ $ticket->party_size }} orang</td>
-                            <td class="admin-mono">{{ $ticket->phone_number ?? '–' }}</td>
+                            <td class="admin-mono">{{ $ticket->maskedPhone() ?? '–' }}</td>
                             <td>{{ $ticket->joined_at?->format('d M, H:i') ?? '–' }}</td>
                             <td><span class="admin-badge admin-status-{{ $ticket->status }}">{{ $ticket->statusLabel() }}</span></td>
                         </tr>

@@ -35,4 +35,6 @@ return [
         ],
     ],
 
+    // cloudflared quick tunnel metrics (see PublicUrl). Empty string disables tunnel detection.
+    'cloudflared' => ['metrics_url' => env('CLOUDFLARED_METRICS_URL', 'http://127.0.0.1:20241')],
 ];

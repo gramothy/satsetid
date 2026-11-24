@@ -3,7 +3,7 @@
 SatSet adalah antrean virtual untuk bisnis F&B (restoran, cafe, food stall). Customer **scan QR di outlet**, mendaftar lewat **chatbot WhatsApp**, lalu menerima kabar giliran lewat WhatsApp tanpa harus berdiri menunggu.
 
 ```text
-Scan QR di outlet → halaman outlet (/r/{slug}) → "Lanjut via WhatsApp"
+Scan QR di outlet → WhatsApp langsung terbuka dengan pesan terisi (saat WhatsApp aktif). Tanpa WhatsApp, QR membuka halaman outlet (/r/{slug}) → "Lanjut via WhatsApp"
 → chatbot: jumlah tamu → konfirmasi YA → nomor antrean (mis. A-001)
 → notifikasi: tinggal 3 antrean, tinggal 1 antrean, giliran tiba
 ```
@@ -265,21 +265,27 @@ Sesi tersimpan di `wa-gateway/auth_info/` (sudah di-*ignore* Git; jangan dibagik
 
 ### 7. Coba dari HP lain
 
-Dari HP dengan nomor **lain**, kirim `ANTRE <slug-outlet>` ke nomor outlet (atau scan QR outlet lalu klik **Lanjut via WhatsApp**). Bot membalas, lalu balas jumlah tamu dan `YA`. Semua pesan masuk dan keluar terlihat di **Admin → Log WhatsApp**.
+Dari HP dengan nomor **lain**, scan QR outlet. WhatsApp langsung terbuka dengan pesan yang sudah terisi, kirim pesan itu. Bot membalas dengan info outlet dan menu angka: `1` ambil nomor, `2` lihat antrean, `3` antrean saya. Setelah nomor diambil, menu juga berisi `4` untuk membatalkan (dijawab `YA`). Semua pesan masuk dan keluar terlihat di **Admin → Log WhatsApp**.
 
-Bot memahami jawaban yang biasa diketik orang: `antre slug` / `ANTRI slug` (huruf besar-kecil dan tanda baca di akhir diabaikan), jumlah tamu seperti `2`, `2 orang`, atau `3 org`, konfirmasi `ya`, `iya`, `ok`, `oke`, `siap`, dan pembatalan `batal`, `tidak`, `ubah`. Setelah tiket dibuat, pesan apa pun dibalas status antrean terbaru (posisi, perkiraan tunggu, link tiket), kapan pun selama tiket masih aktif.
+Bot memahami jawaban yang biasa diketik orang: `antre slug` / `ANTRI slug` (huruf besar-kecil dan tanda baca di akhir diabaikan), jumlah tamu seperti `2`, `2 orang`, atau `3 org`, konfirmasi `ya`, `iya`, `ok`, `oke`, `siap`, dan pembatalan `batal`, `tidak`, `ubah`. Kata `status` atau `cek` menampilkan antrean Anda. `0` atau `batal` selalu kembali ke menu. Link **Pantau antrean** hanya dikirim kalau alamat publiknya bisa dibuka dari HP (lihat bagian 8); alamat `localhost` tidak pernah dikirim.
 
 Pesan ke customer memakai format WhatsApp (`*tebal*` untuk nomor antrean dan hal penting), maksimal satu emoji per pesan, dan dibuat singkat supaya terbaca sekilas. Customer menerima: balasan pendaftaran, **tinggal 3 antrean**, **tinggal 1 antrean / Anda berikutnya**, **giliran tiba**, **dilewati** (dipanggil tetapi tidak hadir), dan **dibatalkan**.
 
 ### 8. (Opsional) Link tiket untuk customer di jaringan lain
 
-Balasan bot berisi link tiket yang dibangun dari `APP_URL`. Supaya link itu bisa dibuka dari data seluler, buat alamat publik dengan Cloudflare Tunnel:
+Balasan bot berisi link tiket, dan QR outlet memakai alamat publik (QR yang langsung membuka WhatsApp tidak membutuhkan alamat ini). Alamat itu ditentukan saat dibutuhkan (`App\Services\PublicUrl`):
+
+1. Kalau `APP_URL` berisi domain publik (misalnya `https://antre.example.id`), itu yang dipakai.
+2. Kalau `APP_URL` masih `localhost`, dipakai alamat **Cloudflare Tunnel** yang sedang berjalan. Laravel membacanya dari metrics cloudflared.
+3. Kalau tidak ada tunnel, kembali ke `APP_URL`.
+
+Jadi cukup jalankan tunnel dengan metrics aktif, tanpa mengubah `.env`:
 
 ```bash
-cloudflared tunnel --url http://localhost:8000
+cloudflared tunnel --url http://127.0.0.1:8100 --metrics 127.0.0.1:20241
 ```
 
-Isi alamat `https://….trycloudflare.com` ke `APP_URL`, lalu jalankan `php artisan config:clear`. wa-gateway sendiri **tidak** perlu tunnel karena webhook-nya lokal.
+Saat tunnel dimatikan atau dinyalakan ulang dengan hostname baru, link mengikuti dalam sekitar 15 detik. Alamat tunnel dicache selama 15 detik supaya setiap request tidak bertanya ke cloudflared. Variabel `CLOUDFLARED_METRICS_URL` bisa diisi kosong untuk mematikan deteksi ini. wa-gateway sendiri **tidak** perlu tunnel karena webhook-nya lokal.
 
 ### Memutus nomor
 

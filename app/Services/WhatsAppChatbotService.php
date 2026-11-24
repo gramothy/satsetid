@@ -14,7 +14,8 @@ use Illuminate\Validation\ValidationException;
  * Menu-driven chatbot. Every step offers numbered choices. "0" (or BATAL, TIDAK, and similar words) always returns
  * to the outlet menu, so a customer can never get stuck in a question.
  *
- * States: restaurant_selected -> menu -> waiting_party_size -> waiting_confirmation -> queue_created.
+ * States: restaurant_selected -> menu -> waiting_party_size -> waiting_confirmation -> queue_created,
+ * plus waiting_cancel_confirmation (menu option 4, answered with YA).
  * "queue_created" behaves like "menu" while its ticket is active, so the menu stays reachable after registration.
  */
 class WhatsAppChatbotService
@@ -88,12 +89,18 @@ class WhatsAppChatbotService
 
     private function advance(WhatsAppConversation $conversation, string $text): string
     {
-        // "ANTRE <slug>" (also "antri", any case, trailing punctuation) always starts over. The outlet QR link sends this.
-        if (preg_match('/^ANTR[EI]\s+([a-z0-9-]+)[\s.!?]*$/i', $text, $matches)) {
+        // Outlet QR link: "Saya mau antre di <Nama Outlet> (<slug>)". The slug in brackets identifies the outlet.
+        // The older "ANTRE <slug>" form is still understood. Either always starts over.
+        if (preg_match('/^\s*(?:saya\s+)?(?:mau\s+)?(?:antre|antri)\b.*\(([a-z0-9-]+)\)[\s.!?]*$/iu', $text, $matches)
+            || preg_match('/^ANTR[EI]\s+([a-z0-9-]+)[\s.!?]*$/i', $text, $matches)) {
             return $this->start($conversation, mb_strtolower($matches[1]));
         }
 
         $restaurant = $conversation->restaurant_id ? Restaurant::query()->lockForUpdate()->find($conversation->restaurant_id) : null;
+
+        if ($conversation->state === 'waiting_cancel_confirmation' && $restaurant) {
+            return $this->cancelConfirmation($conversation, $restaurant, $text);
+        }
 
         // A ticket stays reachable by chat for as long as it is active, not only for 30 minutes.
         if ($conversation->state === 'queue_created' && $restaurant) {
@@ -107,7 +114,7 @@ class WhatsAppChatbotService
             $wasRegistering = in_array($conversation->state, ['menu', 'waiting_party_size', 'waiting_confirmation'], true);
             $conversation->state = 'restaurant_selected';
             if ($restaurant && $wasRegistering) {
-                return "Sesi di *{$restaurant->name}* sudah berakhir karena tidak ada balasan selama 30 menit.\n\nKirim *ANTRE {$restaurant->slug}* untuk mulai lagi.";
+                return "Sesi di *{$restaurant->name}* sudah berakhir karena tidak ada balasan selama 30 menit.\n\nKirim *Saya mau antre di {$restaurant->name} ({$restaurant->slug})* untuk mulai lagi.";
             }
 
             return 'Halo! Untuk mengambil nomor antrean, scan QR SatSet di outlet lalu ketuk *Lanjut via WhatsApp*.';
@@ -135,17 +142,56 @@ class WhatsAppChatbotService
     private function menu(WhatsAppConversation $conversation, Restaurant $restaurant, ?QueueTicket $ticket, string $text): string
     {
         if ($this->isBack($text)) {
-            return $this->menuText($restaurant);
+            return $this->menuText($restaurant, $ticket);
+        }
+        if (in_array($this->firstWord($text), ['status', 'cek'], true)) {
+            return $this->myQueue($restaurant, $ticket);
         }
 
         return match ($this->choice($text)) {
             1 => $this->chooseTake($conversation, $restaurant, $ticket),
-            2 => $this->snapshotText($restaurant)."\n\n".$this->menuList(),
+            2 => $this->snapshotText($restaurant)."\n\n".$this->menuList($ticket),
             3 => $this->myQueue($restaurant, $ticket),
+            4 => $this->askCancel($conversation, $ticket),
             default => $this->isGreeting($text) || trim($text) === ''
-                ? $this->menuText($restaurant)
-                : "Balas dengan angka *1*, *2*, atau *3*.\n\n".$this->menuList(),
+                ? $this->menuText($restaurant, $ticket)
+                : 'Balas dengan angka '.($ticket ? '*1*, *2*, *3*, atau *4*' : '*1*, *2*, atau *3*').".\n\n".$this->menuList($ticket),
         };
+    }
+
+    /** Menu option 4. Cancelling needs a second answer, so a stray "4" never removes a place in the queue. */
+    private function askCancel(WhatsAppConversation $conversation, ?QueueTicket $ticket): string
+    {
+        if (! $ticket) {
+            return "Anda belum punya nomor antrean aktif.\n\n".$this->menuList();
+        }
+        $conversation->state = 'waiting_cancel_confirmation';
+
+        return "Batalkan nomor *{$ticket->queue_number}*?\nBalas *YA* untuk membatalkan, atau *0* untuk kembali.";
+    }
+
+    private function cancelConfirmation(WhatsAppConversation $conversation, Restaurant $restaurant, string $text): string
+    {
+        $ticket = $conversation->queue_ticket_id ? QueueTicket::query()->lockForUpdate()->find($conversation->queue_ticket_id) : null;
+        if (! $ticket || ! $ticket->isActive()) {
+            $conversation->fill(['state' => 'menu', 'queue_ticket_id' => null]);
+
+            return "Nomor antrean Anda sudah tidak aktif.\n\n".$this->menuText($restaurant);
+        }
+        if ($this->isBack($text)) {
+            $conversation->state = 'queue_created';
+
+            return "Pembatalan tidak jadi. Nomor *{$ticket->queue_number}* tetap aktif.\n\n".$this->menuList($ticket);
+        }
+        if (! in_array($this->firstWord($text), self::YES, true)) {
+            return "Balas *YA* untuk membatalkan nomor *{$ticket->queue_number}*, atau *0* untuk kembali.";
+        }
+
+        $this->queue->cancelTicket($ticket);
+        $conversation->fill(['state' => 'menu', 'queue_ticket_id' => null, 'party_size' => null]);
+
+        return "Nomor antrean *{$ticket->queue_number}* sudah dibatalkan.\n\n"
+            .$this->snapshotText($restaurant)."\n\n".$this->menuList();
     }
 
     private function chooseTake(WhatsAppConversation $conversation, Restaurant $restaurant, ?QueueTicket $ticket): string
@@ -250,18 +296,35 @@ class WhatsAppChatbotService
         return $this->menuText($restaurant);
     }
 
-    /** Greeting, the live queue line, then the numbered menu. */
-    private function menuText(Restaurant $restaurant): string
+    /** Greeting, what the visitor is looking at (outlet facts), the live queue line, then the numbered menu. */
+    private function menuText(Restaurant $restaurant, ?QueueTicket $ticket = null): string
     {
-        return "Halo, selamat datang di *{$restaurant->name}* 👋\n\n".$this->snapshotText($restaurant)."\n\n".$this->menuList();
+        return "Halo, selamat datang di *{$restaurant->name}* 👋\n\n"
+            .$this->outletInfo($restaurant)."\n\n"
+            .$this->snapshotText($restaurant)."\n\n"
+            .$this->menuList($ticket);
     }
 
-    private function menuList(): string
+    /** Only facts the outlet actually stores: short description and the party size limit. */
+    private function outletInfo(Restaurant $restaurant): string
     {
-        return "Balas dengan angka:\n"
-            ."*1* Ambil nomor antrean\n"
-            ."*2* Lihat antrean sekarang\n"
-            .'*3* Antrean saya';
+        $lines = [];
+        if (filled($restaurant->description)) {
+            $lines[] = mb_strimwidth(trim((string) $restaurant->description), 0, 160, '…');
+        }
+        $lines[] = "Maks. {$restaurant->max_party_size} orang per kelompok";
+
+        return implode("\n", $lines);
+    }
+
+    private function menuList(?QueueTicket $ticket = null): string
+    {
+        $lines = ['Balas dengan angka:', '*1* Ambil nomor antrean', '*2* Lihat antrean sekarang', '*3* Antrean saya'];
+        if ($ticket) {
+            $lines[] = '*4* Batalkan antrean saya';
+        }
+
+        return implode("\n", $lines);
     }
 
     private function snapshotText(Restaurant $restaurant): string
@@ -284,10 +347,10 @@ class WhatsAppChatbotService
         return $restaurant->max_party_size > 1 ? "*1 sampai {$restaurant->max_party_size}*" : '*1*';
     }
 
-    /** A single digit from 0 to 3 typed as a menu choice ("1", "2.", "3)"). Anything else is null. */
+    /** A single digit from 0 to 4 typed as a menu choice ("1", "2.", "4)"). Anything else is null. */
     private function choice(string $text): ?int
     {
-        return preg_match('/^\s*([0-3])[.)]?\s*$/', $text, $matches) ? (int) $matches[1] : null;
+        return preg_match('/^\s*([0-4])[.)]?\s*$/', $text, $matches) ? (int) $matches[1] : null;
     }
 
     private function isBack(string $text): bool
@@ -322,8 +385,7 @@ class WhatsAppChatbotService
     private function ticketSummary(QueueTicket $ticket, string $heading): string
     {
         $ticket->loadMissing('restaurant');
-        // Built from APP_URL, not the webhook request host: behind a tunnel or proxy that host is not reachable by customers.
-        $url = rtrim(config('app.url'), '/').route('queue.show', ['ticket' => $ticket->public_token], false);
+        $publicUrl = app(\App\Services\PublicUrl::class);
 
         $lines = [
             $heading,
@@ -342,8 +404,12 @@ class WhatsAppChatbotService
         } else {
             $lines[] = "Status: {$ticket->statusLabel()}";
         }
-        $lines[] = '';
-        $lines[] = "Pantau antrean: {$url}";
+        // A link only a computer on this network can open is never sent to a visitor's phone.
+        $base = $publicUrl->base();
+        if (! $publicUrl->isLocal($base)) {
+            $lines[] = '';
+            $lines[] = 'Pantau antrean: '.$base.route('queue.show', ['ticket' => $ticket->public_token], false);
+        }
 
         return implode("\n", $lines);
     }

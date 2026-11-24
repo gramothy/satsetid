@@ -81,4 +81,22 @@ class QueueTicket extends Model
     {
         return in_array($this->status, [self::STATUS_WAITING, self::STATUS_CALLED], true);
     }
+
+    /**
+     * Phone number for screens that staff and visitors can see at the counter: the first four and last four
+     * digits stay visible, the middle is replaced by "*". Short numbers keep only their last three digits.
+     */
+    public function maskedPhone(): ?string
+    {
+        $phone = (string) $this->phone_number;
+        $length = strlen($phone);
+        if ($length === 0) {
+            return null;
+        }
+        if ($length <= 8) {
+            return str_repeat('*', $length - 3).substr($phone, -3);
+        }
+
+        return substr($phone, 0, 4).str_repeat('*', $length - 8).substr($phone, -4);
+    }
 }

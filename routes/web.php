@@ -23,8 +23,8 @@ Route::get('/', HomeController::class)->name('home');
 
 Route::get('/r/{restaurant:slug}', [RestaurantController::class, 'show'])->name('outlets.show');
 Route::post('/r/{restaurant:slug}/queue', [RestaurantController::class, 'join'])->middleware('throttle:6,1')->name('outlets.join');
-Route::get('/r/{restaurant:slug}/whatsapp', [RestaurantController::class, 'whatsapp'])->middleware('throttle:30,1')->name('outlets.whatsapp');
-Route::get('/r/{restaurant:slug}/status', [RestaurantController::class, 'status'])->middleware('throttle:120,1')->name('outlets.status');
+Route::get('/r/{restaurant:slug}/whatsapp', [RestaurantController::class, 'whatsapp'])->middleware('throttle:300,1')->name('outlets.whatsapp');
+Route::get('/r/{restaurant:slug}/status', [RestaurantController::class, 'status'])->middleware('throttle:600,1')->name('outlets.status');
 
 Route::get('/webhooks/whatsapp', [WhatsAppWebhookController::class, 'verify'])->name('whatsapp.verify');
 Route::post('/webhooks/whatsapp', [WhatsAppWebhookController::class, 'receive'])->name('whatsapp.webhook');
