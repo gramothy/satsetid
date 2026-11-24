@@ -202,7 +202,7 @@ class WhatsAppService
         }
 
         return 'https://wa.me/'.$phone.'?'.http_build_query(
-            ['text' => 'ANTRE '.$restaurant->slug], '', '&', PHP_QUERY_RFC3986
+            ['text' => "Saya mau antre di {$restaurant->name} ({$restaurant->slug})"], '', '&', PHP_QUERY_RFC3986
         );
     }
 
@@ -501,7 +501,7 @@ class WhatsAppService
     private function isStaleNotification(WhatsappLog $message): bool
     {
         $required = match ($message->notification_field) {
-            'three_ahead_notified_at', 'one_ahead_notified_at' => QueueTicket::STATUS_WAITING,
+            'three_ahead_notified_at', 'two_ahead_notified_at', 'one_ahead_notified_at' => QueueTicket::STATUS_WAITING,
             'called_notified_at' => QueueTicket::STATUS_CALLED,
             default => null,
         };
@@ -528,7 +528,7 @@ class WhatsAppService
         DB::transaction(function () use ($message, $providerId): void {
             $message->update(['status' => 'sent', 'provider_message_id' => $providerId, 'sent_at' => now(), 'error_code' => null]);
             if ($message->queue_ticket_id && in_array($message->notification_field, [
-                'three_ahead_notified_at', 'one_ahead_notified_at', 'called_notified_at',
+                'three_ahead_notified_at', 'two_ahead_notified_at', 'one_ahead_notified_at', 'called_notified_at',
             ], true)) {
                 QueueTicket::query()->whereKey($message->queue_ticket_id)
                     ->whereNull($message->notification_field)->update([$message->notification_field => now()]);
@@ -557,7 +557,7 @@ class WhatsAppService
         }
 
         // Twilio can only report delivery to a publicly reachable HTTPS address.
-        $appUrl = rtrim((string) config('app.url'), '/');
+        $appUrl = app(\App\Services\PublicUrl::class)->base();
         if (str_starts_with($appUrl, 'https://')) {
             $params['StatusCallback'] = $appUrl.route('whatsapp.twilio.status', [], false);
         }

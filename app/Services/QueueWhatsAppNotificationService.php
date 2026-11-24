@@ -34,11 +34,10 @@ class QueueWhatsAppNotificationService
     }
 
     /**
-     * Tell waiting customers that their turn is close: "tinggal 3" (3 or fewer groups ahead) and
-     * "tinggal 1" (1 or none ahead). Thresholds use "<=" so a jump, such as two cancellations at once,
-     * never skips a notice; the *_notified_at markers and unique event keys send each notice once.
-     * When both thresholds are crossed together only the closer one ("tinggal 1") is sent.
-     * Tickets that joined already inside a threshold have its marker set (QueueService::createTicket).
+     * Tell waiting customers that their turn is close: "tinggal 3", "tinggal 2", and "tinggal 1" (or none ahead).
+     * Each number has its own marker, so every notice is sent once. When a jump crosses several numbers at once
+     * (two cancellations), only the closest one is sent: 4 ahead -> 2 ahead sends "tinggal 2" only.
+     * Tickets that joined already at or inside a threshold have its marker set (QueueService::createTicket).
      *
      * $queue is kept for callers; positions come from one query, counted in memory.
      */
@@ -64,7 +63,12 @@ class QueueWhatsAppNotificationService
                             ."Silakan menuju *{$restaurant->name}* sekarang.";
                     $this->notify($ticket, 'one_ahead', $text, 'one_ahead_notified_at');
                 }
-            } elseif ($ahead <= 3 && ! $ticket->three_ahead_notified_at) {
+            } elseif ($ahead === 2) {
+                if (! $ticket->two_ahead_notified_at) {
+                    $this->notify($ticket, 'two_ahead', "⏳ *Tinggal 2 antrean lagi*\n\n"
+                        ."Nomor *{$ticket->queue_number}* di {$restaurant->name} sebentar lagi dipanggil.\nSilakan mulai menuju outlet.", 'two_ahead_notified_at');
+                }
+            } elseif ($ahead === 3 && ! $ticket->three_ahead_notified_at) {
                 $this->notify($ticket, 'three_ahead', "⏳ *Tinggal {$ahead} antrean lagi*\n\n"
                     ."Nomor *{$ticket->queue_number}* di {$restaurant->name} sebentar lagi dipanggil.\nSilakan mulai menuju outlet.", 'three_ahead_notified_at');
             }

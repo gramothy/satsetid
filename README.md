@@ -3,7 +3,7 @@
 SatSet adalah antrean virtual untuk bisnis F&B (restoran, cafe, food stall). Customer **scan QR di outlet**, mendaftar lewat **chatbot WhatsApp**, lalu menerima kabar giliran lewat WhatsApp tanpa harus berdiri menunggu.
 
 ```text
-Scan QR di outlet → halaman outlet (/r/{slug}) → "Lanjut via WhatsApp"
+Scan QR di outlet → WhatsApp langsung terbuka dengan pesan terisi (saat WhatsApp aktif). Tanpa WhatsApp, QR membuka halaman outlet (/r/{slug}) → "Lanjut via WhatsApp"
 → chatbot: jumlah tamu → konfirmasi YA → nomor antrean (mis. A-001)
 → notifikasi: tinggal 3 antrean, tinggal 1 antrean, giliran tiba
 ```
@@ -36,61 +36,58 @@ Scan QR di outlet → halaman outlet (/r/{slug}) → "Lanjut via WhatsApp"
 
 - PHP **8.3 atau lebih baru** dengan ekstensi `pdo_mysql`, `mbstring`, `openssl`, `curl`, `fileinfo`. `composer.lock` dikunci untuk PHP 8.3 (`config.platform.php` di `composer.json`), jadi `composer install` berjalan di PHP 8.3 maupun 8.4
 - Composer
-- MySQL atau MariaDB (MySQL Server atau XAMPP; **pakai salah satu saja** agar port 3306 tidak bentrok)
+- SQLite (sudah termasuk di PHP, tanpa instal apa pun; dipakai secara default oleh `scripts\setup.ps1`). MySQL atau MariaDB juga didukung, opsional (MySQL Server atau XAMPP; **pakai salah satu saja** agar port 3306 tidak bentrok)
 - Node.js **20.12 atau lebih baru** (disarankan 22 LTS), hanya untuk `wa-gateway` saat WhatsApp dipakai. Tanpa WhatsApp, Node.js tidak diperlukan
 
 ## Instalasi pertama kali
 
-Jalankan perintah berikut dari folder proyek (folder yang berisi file `artisan`).
+**Cara cepat (Windows).** Buka PowerShell di folder proyek, lalu jalankan:
 
-**1. Instal dependency PHP**
-
-```bash
-composer install
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
 ```
 
-**2. Buat file `.env` dan app key**
+Skrip ini memeriksa PHP 8.3+ dan Composer, menginstal dependency, membuat `.env` (SQLite, `APP_DEBUG=false`, antrean langsung diproses), membuat database dan tabelnya, menambahkan tiga outlet contoh, lalu menanyakan email dan nama akun pemilik. **Password diketik sendiri di jendela itu dan tidak pernah ditampilkan skrip.**
 
-```bash
-cp .env.example .env
+Untuk ikut WhatsApp, tambahkan `-WithWhatsApp` (butuh Node.js 20.12 atau lebih baru):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -WithWhatsApp
 ```
 
-```bash
-php artisan key:generate
-```
+Skrip membuat token dan secret acak untuk `wa-gateway`, menginstal dependency-nya, lalu menyalin nilai yang sama ke `.env` Laravel. Nilai itu tidak pernah ditampilkan.
 
-**3. Buat database MySQL** bernama `satset`, lewat terminal MySQL atau phpMyAdmin:
+Opsi lain:
 
-```sql
-CREATE DATABASE satset CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
+| Opsi | Fungsi |
+|---|---|
+| `-SkipOwner` | Lewati pembuatan akun pemilik |
+| `-NoPrompt` | Tanpa pertanyaan sama sekali. Akun pemilik dibuat manual (lihat langkah 6 di bawah) |
 
-**4. Isi koneksi database di `.env`**
+Skrip aman dijalankan ulang. File yang sudah ada tidak ditimpa: `.env` yang sudah ada tidak diubah, dan `wa-gateway.env` yang sudah ada dipakai apa adanya.
 
-```env
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=satset
-DB_USERNAME=root
-DB_PASSWORD=password_mysql_anda
-```
+### Cara manual
 
-Untuk XAMPP, `DB_PASSWORD` biasanya dikosongkan.
+Kalau tidak memakai skrip, jalankan perintah ini dari folder proyek (folder yang berisi file `artisan`):
 
-**5. Buat tabel dan data contoh** (3 restoran contoh beserta beberapa antrean)
-
-```bash
-php artisan migrate --seed
-```
-
-**6. Buat akun pemilik SatSet** (Anda akan diminta mengetik password minimal 12 karakter)
-
-```bash
-php artisan satset:admin email@anda.com --name="Nama Anda"
-```
+1. `composer install`
+2. `copy .env.example .env`, lalu `php artisan key:generate`
+3. Isi koneksi database di `.env`. Untuk SQLite: `DB_CONNECTION=sqlite` dan `DB_DATABASE` berisi path file database. Untuk MySQL: `DB_CONNECTION=mysql` dan buat database `satset` dengan `CREATE DATABASE satset CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`
+4. `php artisan migrate --seed` (membuat tabel dan 3 outlet contoh)
+5. `php artisan satset:admin email@anda.com --name="Nama Anda"` (password minimal 12 karakter, diketik sendiri)
+6. Untuk WhatsApp, ikuti bagian [Menghubungkan WhatsApp](#menghubungkan-whatsapp)
 
 ## Menjalankan aplikasi
+
+**Cara cepat (Windows):**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start.ps1
+```
+
+Skrip menyalakan server web di port 8000, scheduler, WhatsApp gateway (kalau WhatsApp aktif), dan tunnel cloudflared (kalau terpasang). Setiap bagian punya jendela sendiri. Tutup jendelanya untuk berhenti. Opsi: `-Port 8100`, `-NoTunnel` (tanpa tunnel), `-NoWhatsApp` (gateway tidak dinyalakan). Skrip menolak jalan kalau port sudah dipakai, dan tidak membuat tunnel kedua kalau tunnel lain sudah berjalan.
+
+**Tanpa skrip:**
 
 ```bash
 php artisan serve
@@ -199,6 +196,8 @@ HP customer ⇄ WhatsApp ⇄ wa-gateway (Node + Baileys, 127.0.0.1:3100) ⇄ Lar
 
 ### 1. Instal wa-gateway (sekali)
 
+Dengan `scripts\setup.ps1 -WithWhatsApp`, langkah 1 sampai 4 dikerjakan otomatis. Langkah di bawah untuk pengaturan manual.
+
 Butuh Node.js 20.12 atau lebih baru (cek dengan `node --version`).
 
 ```bash
@@ -248,6 +247,8 @@ php artisan config:clear
 
 ### 5. Jalankan empat terminal
 
+Dengan `scripts\start.ps1`, keempat bagian ini dinyalakan otomatis di jendela masing-masing.
+
 | Terminal | Perintah | Fungsi |
 |---|---|---|
 | 1 | `php artisan serve` (atau `php artisan satset:lan`) | Web SatSet |
@@ -265,21 +266,27 @@ Sesi tersimpan di `wa-gateway/auth_info/` (sudah di-*ignore* Git; jangan dibagik
 
 ### 7. Coba dari HP lain
 
-Dari HP dengan nomor **lain**, kirim `ANTRE <slug-outlet>` ke nomor outlet (atau scan QR outlet lalu klik **Lanjut via WhatsApp**). Bot membalas, lalu balas jumlah tamu dan `YA`. Semua pesan masuk dan keluar terlihat di **Admin → Log WhatsApp**.
+Dari HP dengan nomor **lain**, scan QR outlet. WhatsApp langsung terbuka dengan pesan yang sudah terisi, kirim pesan itu. Bot membalas dengan info outlet dan menu angka: `1` ambil nomor, `2` lihat antrean, `3` antrean saya. Setelah nomor diambil, menu juga berisi `4` untuk membatalkan (dijawab `YA`). Semua pesan masuk dan keluar terlihat di **Admin → Log WhatsApp**.
 
-Bot memahami jawaban yang biasa diketik orang: `antre slug` / `ANTRI slug` (huruf besar-kecil dan tanda baca di akhir diabaikan), jumlah tamu seperti `2`, `2 orang`, atau `3 org`, konfirmasi `ya`, `iya`, `ok`, `oke`, `siap`, dan pembatalan `batal`, `tidak`, `ubah`. Setelah tiket dibuat, pesan apa pun dibalas status antrean terbaru (posisi, perkiraan tunggu, link tiket), kapan pun selama tiket masih aktif.
+Bot memahami jawaban yang biasa diketik orang: `antre slug` / `ANTRI slug` (huruf besar-kecil dan tanda baca di akhir diabaikan), jumlah tamu seperti `2`, `2 orang`, atau `3 org`, konfirmasi `ya`, `iya`, `ok`, `oke`, `siap`, dan pembatalan `batal`, `tidak`, `ubah`. Kata `status` atau `cek` menampilkan antrean Anda. `0` atau `batal` selalu kembali ke menu. Link **Pantau antrean** hanya dikirim kalau alamat publiknya bisa dibuka dari HP (lihat bagian 8); alamat `localhost` tidak pernah dikirim.
 
-Pesan ke customer memakai format WhatsApp (`*tebal*` untuk nomor antrean dan hal penting), maksimal satu emoji per pesan, dan dibuat singkat supaya terbaca sekilas. Customer menerima: balasan pendaftaran, **tinggal 3 antrean**, **tinggal 1 antrean / Anda berikutnya**, **giliran tiba**, **dilewati** (dipanggil tetapi tidak hadir), dan **dibatalkan**.
+Pesan ke customer memakai format WhatsApp (`*tebal*` untuk nomor antrean dan hal penting), maksimal satu emoji per pesan, dan dibuat singkat supaya terbaca sekilas. Customer menerima: balasan pendaftaran, **tinggal 3 antrean**, **tinggal 2 antrean**, **tinggal 1 antrean / Anda berikutnya**, **giliran tiba**, **dilewati** (dipanggil tetapi tidak hadir), dan **dibatalkan**.
 
 ### 8. (Opsional) Link tiket untuk customer di jaringan lain
 
-Balasan bot berisi link tiket yang dibangun dari `APP_URL`. Supaya link itu bisa dibuka dari data seluler, buat alamat publik dengan Cloudflare Tunnel:
+Balasan bot berisi link tiket, dan QR outlet memakai alamat publik (QR yang langsung membuka WhatsApp tidak membutuhkan alamat ini). Alamat itu ditentukan saat dibutuhkan (`App\Services\PublicUrl`):
+
+1. Kalau `APP_URL` berisi domain publik (misalnya `https://antre.example.id`), itu yang dipakai.
+2. Kalau `APP_URL` masih `localhost`, dipakai alamat **Cloudflare Tunnel** yang sedang berjalan. Laravel membacanya dari metrics cloudflared.
+3. Kalau tidak ada tunnel, kembali ke `APP_URL`.
+
+Jadi cukup jalankan tunnel dengan metrics aktif, tanpa mengubah `.env`. `scripts\start.ps1` melakukan ini otomatis dan menampilkan alamat publiknya. Webhook wa-gateway memakai port 8000, jadi server web juga harus di 8000:
 
 ```bash
-cloudflared tunnel --url http://localhost:8000
+cloudflared tunnel --url http://127.0.0.1:8000 --metrics 127.0.0.1:20241
 ```
 
-Isi alamat `https://….trycloudflare.com` ke `APP_URL`, lalu jalankan `php artisan config:clear`. wa-gateway sendiri **tidak** perlu tunnel karena webhook-nya lokal.
+Saat tunnel dimatikan atau dinyalakan ulang dengan hostname baru, link mengikuti dalam sekitar 15 detik. Alamat tunnel dicache selama 15 detik supaya setiap request tidak bertanya ke cloudflared. Variabel `CLOUDFLARED_METRICS_URL` bisa diisi kosong untuk mematikan deteksi ini. wa-gateway sendiri **tidak** perlu tunnel karena webhook-nya lokal.
 
 ### Memutus nomor
 

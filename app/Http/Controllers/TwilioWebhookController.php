@@ -67,6 +67,7 @@ class TwilioWebhookController extends Controller
         // Twilio signs the public URL it called; behind a tunnel Laravel sees a local one, so accept APP_URL too.
         $path = $request->getRequestUri();
         $candidates = array_unique([
+            app(\App\Services\PublicUrl::class)->base().$path,
             rtrim((string) config('app.url'), '/').$path,
             $request->fullUrl(),
         ]);

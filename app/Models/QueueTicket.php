@@ -32,6 +32,7 @@ class QueueTicket extends Model
         'cancelled_at',
         'almost_turn_notified_at',
         'three_ahead_notified_at',
+        'two_ahead_notified_at',
         'one_ahead_notified_at',
         'called_notified_at',
     ];
@@ -54,6 +55,7 @@ class QueueTicket extends Model
             'cancelled_at' => 'datetime',
             'almost_turn_notified_at' => 'datetime',
             'three_ahead_notified_at' => 'datetime',
+            'two_ahead_notified_at' => 'datetime',
             'one_ahead_notified_at' => 'datetime',
             'called_notified_at' => 'datetime',
         ];
@@ -80,5 +82,23 @@ class QueueTicket extends Model
     public function isActive(): bool
     {
         return in_array($this->status, [self::STATUS_WAITING, self::STATUS_CALLED], true);
+    }
+
+    /**
+     * Phone number for screens that staff and visitors can see at the counter: the first four and last four
+     * digits stay visible, the middle is replaced by "*". Short numbers keep only their last three digits.
+     */
+    public function maskedPhone(): ?string
+    {
+        $phone = (string) $this->phone_number;
+        $length = strlen($phone);
+        if ($length === 0) {
+            return null;
+        }
+        if ($length <= 8) {
+            return str_repeat('*', $length - 3).substr($phone, -3);
+        }
+
+        return substr($phone, 0, 4).str_repeat('*', $length - 8).substr($phone, -4);
     }
 }

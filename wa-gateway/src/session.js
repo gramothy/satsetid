@@ -1,6 +1,6 @@
 import { rm } from 'node:fs/promises'
 import { SendError } from './send-queue.js'
-import { backoffDelay, inboundEventsFromUpsert, jidToPhone, phoneToJid, toStatusEvent } from './util.js'
+import { backoffDelay, inboundEventsFromUpsert, isStaleSessionError, jidToPhone, phoneToJid, toStatusEvent } from './util.js'
 
 /** Values reported by GET /health. */
 export const SESSION_STATES = Object.freeze(['connecting', 'qr', 'open', 'closed', 'logged_out'])
@@ -322,7 +322,15 @@ export function createSession({
                 if (error?.output?.statusCode === CONNECTION_CLOSED) {
                     throw new SendError('not_sent', 'not_connected', { cause: error })
                 }
-                throw error
+                // 479 "smax-invalid": WhatsApp rejected the stanza before delivery because a device
+                // of the recipient has a stale Signal session. Rebuild the sessions and retry once.
+                if (isStaleSessionError(error)) {
+                    logger.warn({ phone: jidToPhone(jid) }, 'Sesi perangkat penerima basi; sesi dibangun ulang lalu dikirim ulang')
+                    await socket.assertSessions([jid], true)
+                    sent = await socket.sendMessage(jid, { text })
+                } else {
+                    throw error
+                }
             }
             const id = sent?.key?.id
             if (typeof id !== 'string' || id === '') {
