@@ -105,6 +105,7 @@ class BaileysWhatsAppTest extends TestCase
         $this->connected();
 
         $this->incoming('in-1', 'ANTRE ayam-bakar')->assertOk();
+        $this->incoming('in-1-menu', '1');
 
         $reply = WhatsappLog::query()->where('event_key', 'reply:in-1')->firstOrFail();
         $this->assertSame('sent', $reply->status);
@@ -138,6 +139,7 @@ class BaileysWhatsAppTest extends TestCase
         $this->connected();
 
         $this->incoming('flow-1', 'ANTRE ayam-bakar')->assertOk();
+        $this->incoming('flow-1-menu', '1');
         $this->assertDatabaseHas('whatsapp_conversations', ['phone_number' => self::CUSTOMER, 'restaurant_id' => $restaurant->id, 'state' => 'waiting_party_size']);
         $this->incoming('flow-2', '2')->assertOk();
         $this->assertDatabaseHas('whatsapp_conversations', ['state' => 'waiting_confirmation', 'party_size' => 2]);
@@ -148,7 +150,7 @@ class BaileysWhatsAppTest extends TestCase
         $this->incoming('flow-4', 'YA')->assertOk();
         $this->assertDatabaseCount('queue_tickets', 1);
 
-        $this->assertSame(4, WhatsappLog::query()->where('direction', 'outbound')->where('status', 'sent')->count());
+        $this->assertSame(5, WhatsappLog::query()->where('direction', 'outbound')->where('status', 'sent')->count());
         Http::assertSent(fn (ClientRequest $request) => $request->url() === self::GATEWAY.'/send'
             && str_contains($request['text'], 'Berhasil!') && str_contains($request['text'], 'A-001'));
     }
@@ -161,6 +163,7 @@ class BaileysWhatsAppTest extends TestCase
         $this->restaurant();
         $this->connected();
         $this->incoming('st-1', 'ANTRE ayam-bakar');
+        $this->incoming('st-1-menu', '1');
         $outbound = WhatsappLog::query()->where('direction', 'outbound')->firstOrFail();
 
         $this->webhook(['type' => 'status', 'provider_message_id' => $outbound->provider_message_id, 'status' => 'read'])->assertOk();
@@ -179,6 +182,7 @@ class BaileysWhatsAppTest extends TestCase
         $this->restaurant();
         $this->connected();
         $this->incoming('st-2', 'ANTRE ayam-bakar');
+        $this->incoming('st-2-menu', '1');
         $outbound = WhatsappLog::query()->where('direction', 'outbound')->firstOrFail();
 
         $this->webhook(['type' => 'status', 'provider_message_id' => $outbound->provider_message_id, 'status' => 'failed'])->assertOk();

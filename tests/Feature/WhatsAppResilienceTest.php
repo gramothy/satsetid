@@ -73,7 +73,7 @@ class WhatsAppResilienceTest extends TestCase
     {
         $reply = $this->say('6281200000001', $text);
 
-        $this->assertSame('waiting_party_size', $this->state('6281200000001'));
+        $this->assertSame('menu', $this->state('6281200000001'));
         $this->assertStringContainsString('selamat datang di *Ayam Bakar Nusantara*', $reply);
     }
 
@@ -84,7 +84,7 @@ class WhatsAppResilienceTest extends TestCase
             'padded' => [' 4 ', 4], 'leading zero' => ['02', 2], 'with words after' => ['6 orang dewasa', 6],
             'pax' => ['5 pax', 5],
             'word' => ['dua', null], 'decimal' => ['2.5', null], 'negative' => ['-1', null],
-            'too many' => ['10', null], 'zero' => ['0', null],
+            'too many' => ['10', null],
         ];
     }
 
@@ -92,6 +92,7 @@ class WhatsAppResilienceTest extends TestCase
     public function test_party_size_accepts_natural_answers_and_rejects_the_rest(string $text, ?int $expected): void
     {
         $this->say('6281200000002', 'ANTRE ayam-bakar');
+        $this->say('6281200000002', '1');
         $reply = $this->say('6281200000002', $text);
 
         if ($expected === null) {
@@ -116,28 +117,31 @@ class WhatsAppResilienceTest extends TestCase
     public function test_confirmation_understands_common_yes_and_no_answers(string $text, bool $creates): void
     {
         $this->say('6281200000003', 'ANTRE ayam-bakar');
+        $this->say('6281200000003', '1');
         $this->say('6281200000003', '2');
         $reply = $this->say('6281200000003', $text);
 
         $this->assertSame($creates ? 1 : 0, QueueTicket::query()->where('phone_number', '6281200000003')->count());
-        $this->assertStringContainsString($creates ? 'Berhasil!' : 'nomor antrean belum dibuat', $reply);
-        $this->assertSame($creates ? 'queue_created' : 'waiting_party_size', $this->state('6281200000003'));
+        $this->assertStringContainsString($creates ? 'Berhasil!' : 'Ambil nomor antrean', $reply);
+        $this->assertSame($creates ? 'queue_created' : 'menu', $this->state('6281200000003'));
     }
 
     public function test_unclear_confirmation_repeats_the_choice_without_creating_a_ticket(): void
     {
         $this->say('6281200000004', 'ANTRE ayam-bakar');
+        $this->say('6281200000004', '1');
         $this->say('6281200000004', '2');
 
         $reply = $this->say('6281200000004', 'hmm nanti dulu');
 
         $this->assertSame(0, QueueTicket::query()->count());
-        $this->assertStringContainsString('Balas *YA*', $reply);
+        $this->assertStringContainsString('Balas *1*', $reply);
     }
 
     public function test_expired_registration_tells_the_customer_how_to_restart(): void
     {
         $this->say('6281200000005', 'ANTRE ayam-bakar');
+        $this->say('6281200000005', '1');
         $this->travel(31)->minutes();
 
         $reply = $this->say('6281200000005', '2');
@@ -149,14 +153,14 @@ class WhatsAppResilienceTest extends TestCase
 
     public function test_customer_can_still_check_the_ticket_hours_after_registering(): void
     {
-        foreach (['ANTRE ayam-bakar', '2', 'YA'] as $text) {
+        foreach (['ANTRE ayam-bakar', '1', '2', 'YA'] as $text) {
             $this->say('6281200000006', $text);
         }
         $this->travel(2)->hours();
 
-        $reply = $this->say('6281200000006', 'status?');
+        $reply = $this->say('6281200000006', '3');
 
-        $this->assertStringContainsString('*Status antrean Anda*', $reply);
+        $this->assertStringContainsString('*Antrean Anda*', $reply);
         $this->assertStringContainsString('Nomor antrean: *A-001*', $reply);
         $this->assertStringContainsString('http://localhost/queue/', $reply);
     }
@@ -164,7 +168,7 @@ class WhatsAppResilienceTest extends TestCase
     public function test_bot_messages_use_whatsapp_formatting_and_stay_short(): void
     {
         $replies = [];
-        foreach (['ANTRE ayam-bakar', '2', 'YA'] as $text) {
+        foreach (['ANTRE ayam-bakar', '1', '2', 'YA'] as $text) {
             $replies[] = $this->say('6281200000007', $text);
         }
 
@@ -309,6 +313,92 @@ class WhatsAppResilienceTest extends TestCase
     {
         $this->assertSame('Asia/Jakarta', config('app.timezone'));
         $this->assertSame('Asia/Jakarta', now()->getTimezone()->getName());
+    }
+
+    // --- Menu flow -----------------------------------------------------------------------
+
+    public function test_batal_at_confirmation_returns_to_the_menu_instead_of_asking_again(): void
+    {
+        $this->say('6281200000010', 'ANTRE ayam-bakar');
+        $this->say('6281200000010', '1');
+        $this->say('6281200000010', '2');
+
+        $reply = $this->say('6281200000010', 'BATAL');
+
+        $this->assertSame('menu', $this->state('6281200000010'));
+        $this->assertStringContainsString('Balas dengan angka', $reply);
+        $this->assertSame(0, QueueTicket::query()->count());
+
+        $this->say('6281200000010', '1');
+        $this->say('6281200000010', '3');
+        $this->assertSame('waiting_confirmation', $this->state('6281200000010'));
+    }
+
+    public function test_free_text_and_zero_never_trap_the_customer(): void
+    {
+        $this->say('6281200000011', 'ANTRE ayam-bakar');
+        $this->say('6281200000011', '1');
+
+        foreach (['gak jadi antre', 'Halo', 'keluar', 'batal', '0'] as $text) {
+            $reply = $this->say('6281200000011', $text);
+            $this->assertSame('menu', $this->state('6281200000011'), "after '{$text}'");
+            $this->assertStringContainsString('Balas dengan angka', $reply, "after '{$text}'");
+            $this->say('6281200000011', '1');
+        }
+        $this->assertSame(0, QueueTicket::query()->count());
+    }
+
+    public function test_zero_at_party_size_returns_to_the_menu(): void
+    {
+        $this->say('6281200000012', 'ANTRE ayam-bakar');
+        $this->say('6281200000012', '1');
+
+        $this->say('6281200000012', '0');
+
+        $this->assertSame('menu', $this->state('6281200000012'));
+    }
+
+    public function test_menu_option_two_shows_the_queue_and_stays_in_the_menu(): void
+    {
+        $this->say('6281200000013', 'ANTRE ayam-bakar');
+
+        $reply = $this->say('6281200000013', '2');
+
+        $this->assertSame('menu', $this->state('6281200000013'));
+        $this->assertStringContainsString('Saat ini', $reply);
+        $this->assertStringContainsString('Balas dengan angka', $reply);
+    }
+
+    public function test_menu_option_one_is_refused_while_a_ticket_is_active(): void
+    {
+        foreach (['ANTRE ayam-bakar', '1', '2', 'YA'] as $text) {
+            $this->say('6281200000014', $text);
+        }
+
+        $reply = $this->say('6281200000014', '1');
+
+        $this->assertStringContainsString('sudah punya nomor antrean aktif', $reply);
+        $this->assertSame(1, QueueTicket::query()->count());
+    }
+
+    public function test_menu_option_three_without_a_ticket_explains_and_lists_the_menu(): void
+    {
+        $this->say('6281200000015', 'ANTRE ayam-bakar');
+
+        $reply = $this->say('6281200000015', '3');
+
+        $this->assertStringContainsString('belum punya nomor antrean aktif', $reply);
+        $this->assertStringContainsString('Balas dengan angka', $reply);
+    }
+
+    public function test_unknown_menu_text_asks_for_a_number(): void
+    {
+        $this->say('6281200000016', 'ANTRE ayam-bakar');
+
+        $reply = $this->say('6281200000016', 'hmm');
+
+        $this->assertStringContainsString('Balas dengan angka *1*, *2*, atau *3*', $reply);
+        $this->assertSame('menu', $this->state('6281200000016'));
     }
 
     // --- Helpers -------------------------------------------------------------------------

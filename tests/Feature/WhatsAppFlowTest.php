@@ -53,6 +53,7 @@ class WhatsAppFlowTest extends TestCase
         $this->fakeApi();
         $restaurant = $this->restaurant();
         $this->incoming('one', 'ANTRE ayam-bakar')->assertOk();
+        $this->incoming('one-menu', '1');
         $this->assertDatabaseHas('whatsapp_conversations', ['restaurant_id'=>$restaurant->id, 'state'=>'waiting_party_size']);
         $this->assertDatabaseCount('queue_tickets', 0);
         $this->incoming('two', '3')->assertOk();
@@ -71,6 +72,7 @@ class WhatsAppFlowTest extends TestCase
         config(['app.url' => 'https://queue.example.test']);
         $this->restaurant();
         $this->incoming('one', 'ANTRE ayam-bakar');
+        $this->incoming('one-menu', '1');
         $this->incoming('two', '2');
         $this->incoming('three', 'YA');
         $ticket = QueueTicket::query()->firstOrFail();
@@ -85,7 +87,6 @@ class WhatsAppFlowTest extends TestCase
         );
     }
 
-    #[TestWith(['0'])]
     #[TestWith(['7'])]
     #[TestWith(['-1'])]
     #[TestWith(['2.5'])]
@@ -95,6 +96,7 @@ class WhatsAppFlowTest extends TestCase
         $this->fakeApi();
         $this->restaurant();
         $this->incoming('entry', 'ANTRE ayam-bakar');
+        $this->incoming('entry-menu', '1');
         $this->incoming('size', $size)->assertOk();
         $this->assertDatabaseHas('whatsapp_conversations', ['state'=>'waiting_party_size','party_size'=>null]);
         $this->assertDatabaseCount('queue_tickets', 0);
@@ -106,6 +108,7 @@ class WhatsAppFlowTest extends TestCase
         $this->fakeApi();
         $restaurant = $this->restaurant(['max_party_size'=>8]);
         $this->incoming('entry', 'ANTRE ayam-bakar');
+        $this->incoming('entry-menu', '1');
         $this->incoming('size', '8');
         $this->assertDatabaseHas('whatsapp_conversations', ['party_size'=>8,'state'=>'waiting_confirmation']);
         $restaurant->update(['max_party_size'=>4]);
@@ -119,12 +122,15 @@ class WhatsAppFlowTest extends TestCase
         $this->fakeApi();
         $this->restaurant();
         $this->incoming('entry', 'ANTRE ayam-bakar');
+        $this->incoming('entry-menu', '1');
         $this->incoming('entry', 'ANTRE ayam-bakar');
+        $this->incoming('entry-menu', '1');
         $this->incoming('size', '2');
         $this->incoming('confirm', 'YA');
         $this->incoming('confirm', 'YA')->assertOk();
         $this->incoming('different-confirm', 'YA')->assertOk();
         $this->incoming('again', 'ANTRE ayam-bakar')->assertOk();
+        $this->incoming('again-menu', '1');
         $this->assertDatabaseCount('queue_tickets', 1);
         $this->assertSame(1, WhatsappLog::where('event_key', 'reply:confirm')->count());
         $this->assertSame(1, WhatsappLog::where('provider_message_id', 'entry')->where('direction','inbound')->count());
@@ -136,6 +142,7 @@ class WhatsAppFlowTest extends TestCase
         $this->restaurant(['queue_open'=>false]);
         $this->incoming('bad', 'ANTRE invalid');
         $this->incoming('entry', 'ANTRE ayam-bakar');
+        $this->incoming('entry-menu', '1');
         $this->incoming('size', '2');
         $this->incoming('confirm', 'YA')->assertOk();
         $this->assertDatabaseCount('queue_tickets', 0);
@@ -146,6 +153,7 @@ class WhatsAppFlowTest extends TestCase
         $this->fakeApi();
         $this->restaurant();
         $this->incoming('entry', 'ANTRE ayam-bakar');
+        $this->incoming('entry-menu', '1');
         $this->incoming('size', '2');
         $this->travel(31)->minutes();
         $this->incoming('confirm', 'YA')->assertOk();
@@ -165,6 +173,7 @@ class WhatsAppFlowTest extends TestCase
     {
         config(['whatsapp.phone_number_id'=>'other']);
         $this->incoming('entry', 'ANTRE ayam-bakar')->assertOk();
+        $this->incoming('entry-menu', '1');
         $this->assertDatabaseCount('whatsapp_incoming_messages', 0);
         Http::assertNothingSent();
     }
@@ -213,6 +222,7 @@ class WhatsAppFlowTest extends TestCase
         Http::fake(['https://graph.facebook.com/*'=>Http::failedConnection()]);
         $this->restaurant();
         $this->incoming('entry', 'ANTRE ayam-bakar');
+        $this->incoming('entry-menu', '1');
         $this->incoming('size', '2');
         $this->incoming('confirm', 'YA')->assertOk();
         $this->flush();

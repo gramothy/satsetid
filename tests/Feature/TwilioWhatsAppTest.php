@@ -48,6 +48,7 @@ class TwilioWhatsAppTest extends TestCase
         $this->restaurant();
 
         $this->incoming('SM1', 'ANTRE ayam-bakar')->assertOk()->assertHeader('Content-Type', 'text/xml; charset=utf-8');
+        $this->incoming('SM1-menu', '1');
         $this->incoming('SM2', '2')->assertOk();
         $this->incoming('SM3', 'YA')->assertOk();
 
@@ -58,7 +59,7 @@ class TwilioWhatsAppTest extends TestCase
             && str_contains($request['Body'], 'A-001')
             && $request['StatusCallback'] === 'https://queue.example.test/webhooks/twilio/status'
             && $request->hasHeader('Authorization', 'Basic '.base64_encode(self::SID.':'.self::TOKEN)));
-        $this->assertSame(3, WhatsappLog::query()->where('direction', 'outbound')->where('status', 'sent')->count());
+        $this->assertSame(4, WhatsappLog::query()->where('direction', 'outbound')->where('status', 'sent')->count());
     }
 
     public function test_duplicate_twilio_delivery_is_processed_once(): void
@@ -92,6 +93,7 @@ class TwilioWhatsAppTest extends TestCase
         $this->fakeTwilio();
         $this->restaurant();
         $this->incoming('SM1', 'ANTRE ayam-bakar');
+        $this->incoming('SM1-menu', '1');
         $outbound = WhatsappLog::query()->where('direction', 'outbound')->firstOrFail();
 
         $this->signedPost('/webhooks/twilio/status', ['MessageSid' => $outbound->provider_message_id, 'MessageStatus' => 'delivered'])
@@ -122,6 +124,7 @@ class TwilioWhatsAppTest extends TestCase
         Http::fake(['https://api.twilio.com/*' => Http::response(['code' => 63016, 'message' => 'Outside window'], 400)]);
         $this->restaurant();
         $this->incoming('SM1', 'ANTRE ayam-bakar');
+        $this->incoming('SM1-menu', '1');
 
         $this->assertDatabaseHas('whatsapp_logs', ['direction' => 'outbound', 'status' => 'failed', 'error_code' => 'http_400_63016']);
         $this->actingAs(User::factory()->create())->get(route('admin.whatsapp-logs.index'))

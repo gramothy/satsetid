@@ -51,6 +51,7 @@ class GreenApiWhatsAppTest extends TestCase
         $this->restaurant();
 
         $this->incoming('M1', 'ANTRE ayam-bakar')->assertOk();
+        $this->incoming('M1-menu', '1');
         $this->incoming('M2', '2')->assertOk();
         $this->incoming('M3', 'YA', 'extendedTextMessage')->assertOk();
 
@@ -58,7 +59,7 @@ class GreenApiWhatsAppTest extends TestCase
         Http::assertSent(fn (ClientRequest $request) => $request->url() === self::SEND_URL
             && $request['chatId'] === '6281234567890@c.us'
             && str_contains($request['message'], 'A-001'));
-        $this->assertSame(3, WhatsappLog::query()->where('direction', 'outbound')->where('status', 'sent')->count());
+        $this->assertSame(4, WhatsappLog::query()->where('direction', 'outbound')->where('status', 'sent')->count());
     }
 
     public function test_duplicate_delivery_is_processed_once(): void
@@ -114,6 +115,7 @@ class GreenApiWhatsAppTest extends TestCase
         $this->fakeGreenApi();
         $this->restaurant();
         $this->incoming('M1', 'ANTRE ayam-bakar');
+        $this->incoming('M1-menu', '1');
         $outbound = WhatsappLog::query()->where('direction', 'outbound')->firstOrFail();
 
         $this->webhook($this->statusBody($outbound->provider_message_id, 'read'))->assertOk();
@@ -142,6 +144,7 @@ class GreenApiWhatsAppTest extends TestCase
         Http::fake(['https://7107.api.greenapi.com/*' => Http::response(['message' => 'quota exceeded'], 466)]);
         $this->restaurant();
         $this->incoming('M1', 'ANTRE ayam-bakar');
+        $this->incoming('M1-menu', '1');
 
         $this->assertDatabaseHas('whatsapp_logs', ['direction' => 'outbound', 'status' => 'failed', 'error_code' => 'http_466']);
         $this->actingAs(User::factory()->create())->get(route('admin.whatsapp-logs.index'))
