@@ -36,61 +36,58 @@ Scan QR di outlet → WhatsApp langsung terbuka dengan pesan terisi (saat WhatsA
 
 - PHP **8.3 atau lebih baru** dengan ekstensi `pdo_mysql`, `mbstring`, `openssl`, `curl`, `fileinfo`. `composer.lock` dikunci untuk PHP 8.3 (`config.platform.php` di `composer.json`), jadi `composer install` berjalan di PHP 8.3 maupun 8.4
 - Composer
-- MySQL atau MariaDB (MySQL Server atau XAMPP; **pakai salah satu saja** agar port 3306 tidak bentrok)
+- SQLite (sudah termasuk di PHP, tanpa instal apa pun; dipakai secara default oleh `scripts\setup.ps1`). MySQL atau MariaDB juga didukung, opsional (MySQL Server atau XAMPP; **pakai salah satu saja** agar port 3306 tidak bentrok)
 - Node.js **20.12 atau lebih baru** (disarankan 22 LTS), hanya untuk `wa-gateway` saat WhatsApp dipakai. Tanpa WhatsApp, Node.js tidak diperlukan
 
 ## Instalasi pertama kali
 
-Jalankan perintah berikut dari folder proyek (folder yang berisi file `artisan`).
+**Cara cepat (Windows).** Buka PowerShell di folder proyek, lalu jalankan:
 
-**1. Instal dependency PHP**
-
-```bash
-composer install
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
 ```
 
-**2. Buat file `.env` dan app key**
+Skrip ini memeriksa PHP 8.3+ dan Composer, menginstal dependency, membuat `.env` (SQLite, `APP_DEBUG=false`, antrean langsung diproses), membuat database dan tabelnya, menambahkan tiga outlet contoh, lalu menanyakan email dan nama akun pemilik. **Password diketik sendiri di jendela itu dan tidak pernah ditampilkan skrip.**
 
-```bash
-cp .env.example .env
+Untuk ikut WhatsApp, tambahkan `-WithWhatsApp` (butuh Node.js 20.12 atau lebih baru):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -WithWhatsApp
 ```
 
-```bash
-php artisan key:generate
-```
+Skrip membuat token dan secret acak untuk `wa-gateway`, menginstal dependency-nya, lalu menyalin nilai yang sama ke `.env` Laravel. Nilai itu tidak pernah ditampilkan.
 
-**3. Buat database MySQL** bernama `satset`, lewat terminal MySQL atau phpMyAdmin:
+Opsi lain:
 
-```sql
-CREATE DATABASE satset CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
+| Opsi | Fungsi |
+|---|---|
+| `-SkipOwner` | Lewati pembuatan akun pemilik |
+| `-NoPrompt` | Tanpa pertanyaan sama sekali. Akun pemilik dibuat manual (lihat langkah 6 di bawah) |
 
-**4. Isi koneksi database di `.env`**
+Skrip aman dijalankan ulang. File yang sudah ada tidak ditimpa: `.env` yang sudah ada tidak diubah, dan `wa-gateway.env` yang sudah ada dipakai apa adanya.
 
-```env
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=satset
-DB_USERNAME=root
-DB_PASSWORD=password_mysql_anda
-```
+### Cara manual
 
-Untuk XAMPP, `DB_PASSWORD` biasanya dikosongkan.
+Kalau tidak memakai skrip, jalankan perintah ini dari folder proyek (folder yang berisi file `artisan`):
 
-**5. Buat tabel dan data contoh** (3 restoran contoh beserta beberapa antrean)
-
-```bash
-php artisan migrate --seed
-```
-
-**6. Buat akun pemilik SatSet** (Anda akan diminta mengetik password minimal 12 karakter)
-
-```bash
-php artisan satset:admin email@anda.com --name="Nama Anda"
-```
+1. `composer install`
+2. `copy .env.example .env`, lalu `php artisan key:generate`
+3. Isi koneksi database di `.env`. Untuk SQLite: `DB_CONNECTION=sqlite` dan `DB_DATABASE` berisi path file database. Untuk MySQL: `DB_CONNECTION=mysql` dan buat database `satset` dengan `CREATE DATABASE satset CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`
+4. `php artisan migrate --seed` (membuat tabel dan 3 outlet contoh)
+5. `php artisan satset:admin email@anda.com --name="Nama Anda"` (password minimal 12 karakter, diketik sendiri)
+6. Untuk WhatsApp, ikuti bagian [Menghubungkan WhatsApp](#menghubungkan-whatsapp)
 
 ## Menjalankan aplikasi
+
+**Cara cepat (Windows):**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start.ps1
+```
+
+Skrip menyalakan server web di port 8000, scheduler, WhatsApp gateway (kalau WhatsApp aktif), dan tunnel cloudflared (kalau terpasang). Setiap bagian punya jendela sendiri. Tutup jendelanya untuk berhenti. Opsi: `-Port 8100`, `-NoTunnel` (tanpa tunnel), `-NoWhatsApp` (gateway tidak dinyalakan). Skrip menolak jalan kalau port sudah dipakai, dan tidak membuat tunnel kedua kalau tunnel lain sudah berjalan.
+
+**Tanpa skrip:**
 
 ```bash
 php artisan serve
@@ -199,6 +196,8 @@ HP customer ⇄ WhatsApp ⇄ wa-gateway (Node + Baileys, 127.0.0.1:3100) ⇄ Lar
 
 ### 1. Instal wa-gateway (sekali)
 
+Dengan `scripts\setup.ps1 -WithWhatsApp`, langkah 1 sampai 4 dikerjakan otomatis. Langkah di bawah untuk pengaturan manual.
+
 Butuh Node.js 20.12 atau lebih baru (cek dengan `node --version`).
 
 ```bash
@@ -248,6 +247,8 @@ php artisan config:clear
 
 ### 5. Jalankan empat terminal
 
+Dengan `scripts\start.ps1`, keempat bagian ini dinyalakan otomatis di jendela masing-masing.
+
 | Terminal | Perintah | Fungsi |
 |---|---|---|
 | 1 | `php artisan serve` (atau `php artisan satset:lan`) | Web SatSet |
@@ -279,10 +280,10 @@ Balasan bot berisi link tiket, dan QR outlet memakai alamat publik (QR yang lang
 2. Kalau `APP_URL` masih `localhost`, dipakai alamat **Cloudflare Tunnel** yang sedang berjalan. Laravel membacanya dari metrics cloudflared.
 3. Kalau tidak ada tunnel, kembali ke `APP_URL`.
 
-Jadi cukup jalankan tunnel dengan metrics aktif, tanpa mengubah `.env`:
+Jadi cukup jalankan tunnel dengan metrics aktif, tanpa mengubah `.env`. `scripts\start.ps1` melakukan ini otomatis dan menampilkan alamat publiknya. Webhook wa-gateway memakai port 8000, jadi server web juga harus di 8000:
 
 ```bash
-cloudflared tunnel --url http://127.0.0.1:8100 --metrics 127.0.0.1:20241
+cloudflared tunnel --url http://127.0.0.1:8000 --metrics 127.0.0.1:20241
 ```
 
 Saat tunnel dimatikan atau dinyalakan ulang dengan hostname baru, link mengikuti dalam sekitar 15 detik. Alamat tunnel dicache selama 15 detik supaya setiap request tidak bertanya ke cloudflared. Variabel `CLOUDFLARED_METRICS_URL` bisa diisi kosong untuk mematikan deteksi ini. wa-gateway sendiri **tidak** perlu tunnel karena webhook-nya lokal.
