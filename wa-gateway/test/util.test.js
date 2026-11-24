@@ -200,3 +200,13 @@ describe('keamanan', () => {
         assert.equal(bearerTokenMatches('Bearer ', ''), false)
     })
 })
+
+test('isStaleSessionError recognises WhatsApp 479 rejections only', async () => {
+    const { isStaleSessionError } = await import('../src/util.js')
+    assert.equal(isStaleSessionError({ output: { statusCode: 479 } }), true)
+    assert.equal(isStaleSessionError({ data: 479 }), true)
+    assert.equal(isStaleSessionError(new Error('smax-invalid (479)')), true)
+    assert.equal(isStaleSessionError(new Error('Connection Closed')), false)
+    assert.equal(isStaleSessionError({ output: { statusCode: 428 } }), false)
+    assert.equal(isStaleSessionError(null), false)
+})

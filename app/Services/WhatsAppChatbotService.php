@@ -26,6 +26,12 @@ class WhatsAppChatbotService
         $id = $message['id'] ?? null;
         $phone = $this->queue->normalizePhoneNumber((string) ($message['from'] ?? ''));
         if (! is_string($id) || strlen($id) > 255 || $id === '' || ! preg_match('/^[1-9]\d{7,14}$/', $phone)) {
+            // Logged without the message text or the sender number, so a silent drop is at least visible.
+            \Illuminate\Support\Facades\Log::warning('WhatsApp inbound dropped: unusable sender or id', [
+                'has_id' => is_string($id) && $id !== '',
+                'sender_length' => strlen((string) ($message['from'] ?? '')),
+            ]);
+
             return;
         }
         $text = (string) ($message['text']['body'] ?? $message['interactive']['button_reply']['id']

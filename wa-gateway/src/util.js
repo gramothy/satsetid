@@ -273,3 +273,13 @@ export function bearerTokenMatches(header, token) {
 
     return timingSafeEqual(given, expected)
 }
+
+/**
+ * True when WhatsApp rejected a stanza with 479 ("smax-invalid"), which means a device of the
+ * recipient has a stale session. Nothing was delivered, so the send is safe to repeat once.
+ */
+export function isStaleSessionError(error) {
+    return error?.output?.statusCode === 479
+        || error?.data === 479
+        || /smax-invalid|\(479\)/.test(String(error?.message ?? ''))
+}
