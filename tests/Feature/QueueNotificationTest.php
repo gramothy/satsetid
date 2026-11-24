@@ -52,11 +52,11 @@ class QueueNotificationTest extends TestCase
         $this->notifier = app(QueueWhatsAppNotificationService::class);
     }
 
-    public function test_two_cancellations_at_once_still_trigger_tinggal_3(): void
+    public function test_two_cancellations_at_once_send_tinggal_2(): void
     {
         [, $second, $third, $fourth, $fifth] = $this->tickets(5);
         $this->notifier->notifyWaitingPositions($this->restaurant, $this->queue);
-        $this->assertFalse($this->notified($fifth, 'three_ahead'), 'A-005 masih 4 antrean di depan');
+        $this->assertFalse($this->notified($fifth, 'two_ahead'), 'A-005 masih 4 antrean di depan');
 
         // Two customers ahead of A-005 cancel at the same moment: both cancellations are committed
         // before either request runs the notification step, so A-005 goes from 4 ahead to 2 ahead.
@@ -65,20 +65,21 @@ class QueueNotificationTest extends TestCase
         $this->notifier->notifyWaitingPositions($this->restaurant, $this->queue);
         $this->flush();
 
-        $notice = WhatsappLog::query()->where('event_key', "ticket:{$fifth->id}:three_ahead")->firstOrFail();
+        $notice = WhatsappLog::query()->where('event_key', "ticket:{$fifth->id}:two_ahead")->firstOrFail();
         $this->assertSame('sent', $notice->status);
         $this->assertSame("⏳ *Tinggal 2 antrean lagi*\n\nNomor *A-005* di Ayam Bakar Nusantara sebentar lagi dipanggil.\nSilakan mulai menuju outlet.", $notice->message);
-        $this->assertNotNull($fifth->fresh()->three_ahead_notified_at);
+        $this->assertNotNull($fifth->fresh()->two_ahead_notified_at);
+        $this->assertFalse($this->notified($fifth, 'three_ahead'), 'tidak perlu "tinggal 3" setelah "tinggal 2"');
         $this->assertTrue($this->notified($fourth, 'one_ahead'), 'A-004 sekarang tinggal 1');
 
         // Later queue changes do not repeat it.
         $this->notifier->notifyWaitingPositions($this->restaurant, $this->queue);
         $this->flush();
-        $this->assertSame(1, WhatsappLog::query()->where('event_key', "ticket:{$fifth->id}:three_ahead")->count());
+        $this->assertSame(1, WhatsappLog::query()->where('event_key', "ticket:{$fifth->id}:two_ahead")->count());
         Http::assertSentCount(WhatsappLog::query()->where('status', 'sent')->count());
     }
 
-    public function test_cancellations_through_the_queue_service_notify_once(): void
+    public function test_each_step_of_the_queue_gets_its_own_notice(): void
     {
         [$first, $second, $third, , $fifth] = $this->tickets(5);
 
@@ -87,10 +88,11 @@ class QueueNotificationTest extends TestCase
         $this->queue->cancelTicket($first);
         $this->flush();
 
-        // A-005: 4 ahead -> 3 ahead ("tinggal 3") -> 2 ahead -> 1 ahead ("tinggal 1").
+        // A-005: 4 ahead -> 3 ahead ("tinggal 3") -> 2 ahead ("tinggal 2") -> 1 ahead ("tinggal 1").
         $this->assertSame(
             [
                 "⏳ *Tinggal 3 antrean lagi*\n\nNomor *A-005* di Ayam Bakar Nusantara sebentar lagi dipanggil.\nSilakan mulai menuju outlet.",
+                "⏳ *Tinggal 2 antrean lagi*\n\nNomor *A-005* di Ayam Bakar Nusantara sebentar lagi dipanggil.\nSilakan mulai menuju outlet.",
                 "🔔 *Tinggal 1 antrean lagi*\n\nNomor *A-005* dipanggil setelah satu antrean lagi.\nSilakan menuju *Ayam Bakar Nusantara* sekarang agar tidak terlewat.",
             ],
             WhatsappLog::query()->where('queue_ticket_id', $fifth->id)->orderBy('id')->pluck('message')->all(),
@@ -116,11 +118,13 @@ class QueueNotificationTest extends TestCase
     {
         [$first, $second, $third] = $this->tickets(3);
         $this->assertNotNull($third->three_ahead_notified_at, 'A-003 mendaftar dengan 2 antrean di depan');
+        $this->assertNotNull($third->two_ahead_notified_at, 'dan konfirmasinya sudah menyebut 2 antrean');
         $this->assertNull($third->one_ahead_notified_at);
         $this->assertNotNull($first->one_ahead_notified_at, 'A-001 mendaftar tanpa antrean di depan');
 
         $this->notifier->notifyWaitingPositions($this->restaurant, $this->queue);
         $this->assertFalse($this->notified($third, 'three_ahead'));
+        $this->assertFalse($this->notified($third, 'two_ahead'));
         $this->assertFalse($this->notified($first, 'one_ahead'));
 
         // Once A-003 reaches 1 ahead it is still told to get ready.

@@ -32,6 +32,7 @@ class QueueTicket extends Model
         'cancelled_at',
         'almost_turn_notified_at',
         'three_ahead_notified_at',
+        'two_ahead_notified_at',
         'one_ahead_notified_at',
         'called_notified_at',
     ];
@@ -54,6 +55,7 @@ class QueueTicket extends Model
             'cancelled_at' => 'datetime',
             'almost_turn_notified_at' => 'datetime',
             'three_ahead_notified_at' => 'datetime',
+            'two_ahead_notified_at' => 'datetime',
             'one_ahead_notified_at' => 'datetime',
             'called_notified_at' => 'datetime',
         ];
