@@ -269,7 +269,7 @@ Dari HP dengan nomor **lain**, scan QR outlet. WhatsApp langsung terbuka dengan 
 
 Bot memahami jawaban yang biasa diketik orang: `antre slug` / `ANTRI slug` (huruf besar-kecil dan tanda baca di akhir diabaikan), jumlah tamu seperti `2`, `2 orang`, atau `3 org`, konfirmasi `ya`, `iya`, `ok`, `oke`, `siap`, dan pembatalan `batal`, `tidak`, `ubah`. Kata `status` atau `cek` menampilkan antrean Anda. `0` atau `batal` selalu kembali ke menu. Link **Pantau antrean** hanya dikirim kalau alamat publiknya bisa dibuka dari HP (lihat bagian 8); alamat `localhost` tidak pernah dikirim.
 
-Pesan ke customer memakai format WhatsApp (`*tebal*` untuk nomor antrean dan hal penting), maksimal satu emoji per pesan, dan dibuat singkat supaya terbaca sekilas. Customer menerima: balasan pendaftaran, **tinggal 3 antrean**, **tinggal 1 antrean / Anda berikutnya**, **giliran tiba**, **dilewati** (dipanggil tetapi tidak hadir), dan **dibatalkan**.
+Pesan ke customer memakai format WhatsApp (`*tebal*` untuk nomor antrean dan hal penting), maksimal satu emoji per pesan, dan dibuat singkat supaya terbaca sekilas. Customer menerima: balasan pendaftaran, **tinggal 3 antrean**, **tinggal 2 antrean**, **tinggal 1 antrean / Anda berikutnya**, **giliran tiba**, **dilewati** (dipanggil tetapi tidak hadir), dan **dibatalkan**.
 
 ### 8. (Opsional) Link tiket untuk customer di jaringan lain
 

@@ -131,6 +131,8 @@ class QueueService
                 'status' => QueueTicket::STATUS_WAITING,
                 'joined_at' => now(),
                 'three_ahead_notified_at' => $ahead < 3 ? now() : null,
+                // Joined with 2 or fewer ahead: the sign-up confirmation already states that count.
+                'two_ahead_notified_at' => $ahead <= 2 ? now() : null,
                 'one_ahead_notified_at' => $ahead < 1 ? now() : null,
             ]);
         });

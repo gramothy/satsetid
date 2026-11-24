@@ -50,6 +50,7 @@ return [
     'template_language' => env('WHATSAPP_TEMPLATE_LANGUAGE', 'id'),
     'templates' => [
         'three_ahead' => env('WHATSAPP_TEMPLATE_THREE_AHEAD'),
+        'two_ahead' => env('WHATSAPP_TEMPLATE_TWO_AHEAD'),
         'one_ahead' => env('WHATSAPP_TEMPLATE_ONE_AHEAD'),
         'called' => env('WHATSAPP_TEMPLATE_CALLED'),
         'cancelled' => env('WHATSAPP_TEMPLATE_CANCELLED'),
