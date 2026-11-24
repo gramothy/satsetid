@@ -36,7 +36,7 @@ class WhatsAppFlowTest extends TestCase
     {
         $restaurant = $this->restaurant();
         $this->get(route('outlets.whatsapp', $restaurant->slug))
-            ->assertRedirect('https://wa.me/628111111111?text=ANTRE%20ayam-bakar');
+            ->assertRedirect('https://wa.me/628111111111?text=Saya%20mau%20antre%20di%20Ayam%20Bakar%20Nusantara%20%28ayam-bakar%29');
         $this->assertDatabaseCount('queue_tickets', 0);
     }
 
@@ -69,7 +69,8 @@ class WhatsAppFlowTest extends TestCase
     public function test_ticket_link_uses_public_app_url_not_webhook_host(): void
     {
         $this->fakeApi();
-        config(['app.url' => 'https://queue.example.test']);
+        // A public-looking domain: ".test" counts as local by design (see PublicUrl::isLocal).
+        config(['app.url' => 'https://queue.example.com']);
         $this->restaurant();
         $this->incoming('one', 'ANTRE ayam-bakar');
         $this->incoming('one-menu', '1');
@@ -82,7 +83,7 @@ class WhatsAppFlowTest extends TestCase
             'event_key' => 'reply:three',
         ]);
         $this->assertStringContainsString(
-            'https://queue.example.test/queue/'.$ticket->public_token,
+            'https://queue.example.com/queue/'.$ticket->public_token,
             WhatsappLog::query()->where('event_key', 'reply:three')->value('message'),
         );
     }

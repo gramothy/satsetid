@@ -147,7 +147,7 @@ class WhatsAppResilienceTest extends TestCase
         $reply = $this->say('6281200000005', '2');
 
         $this->assertStringContainsString('sudah berakhir', $reply);
-        $this->assertStringContainsString('*ANTRE ayam-bakar*', $reply);
+        $this->assertStringContainsString('*Saya mau antre di Ayam Bakar Nusantara (ayam-bakar)*', $reply);
         $this->assertSame(0, QueueTicket::query()->count());
     }
 
@@ -162,7 +162,8 @@ class WhatsAppResilienceTest extends TestCase
 
         $this->assertStringContainsString('*Antrean Anda*', $reply);
         $this->assertStringContainsString('Nomor antrean: *A-001*', $reply);
-        $this->assertStringContainsString('http://localhost/queue/', $reply);
+        // APP_URL is localhost in tests and no tunnel runs: the link is left out instead of sent to a phone.
+        $this->assertStringNotContainsString('localhost', $reply);
     }
 
     public function test_bot_messages_use_whatsapp_formatting_and_stay_short(): void
@@ -399,6 +400,23 @@ class WhatsAppResilienceTest extends TestCase
 
         $this->assertStringContainsString('Balas dengan angka *1*, *2*, atau *3*', $reply);
         $this->assertSame('menu', $this->state('6281200000016'));
+    }
+
+    public function test_qr_message_opens_the_outlet_named_in_brackets(): void
+    {
+        foreach (['Saya mau antre di Ayam Bakar Nusantara (ayam-bakar)', 'mau antre di Ayam Bakar (ayam-bakar).', 'antre Ayam Bakar Nusantara (ayam-bakar)'] as $text) {
+            $reply = $this->say('6281200000020', $text);
+            $this->assertSame('menu', $this->state('6281200000020'), "for '{$text}'");
+            $this->assertStringContainsString('selamat datang di *Ayam Bakar Nusantara*', $reply);
+        }
+    }
+
+    public function test_plain_text_without_an_outlet_does_not_open_a_registration(): void
+    {
+        $reply = $this->say('6281200000021', 'saya mau antre');
+
+        $this->assertSame('restaurant_selected', $this->state('6281200000021'));
+        $this->assertStringContainsString('scan QR SatSet', $reply);
     }
 
     // --- Helpers -------------------------------------------------------------------------

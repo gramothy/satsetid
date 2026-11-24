@@ -41,8 +41,17 @@ class AdminQrController extends Controller
         ]);
     }
 
+    /**
+     * With WhatsApp ready, the QR opens a chat with the bot directly (the visitor's first message starts the flow).
+     * Otherwise it opens the outlet page as before.
+     */
     private function url(Request $request, Restaurant $restaurant): string
     {
+        $whatsappEntry = app(\App\Services\WhatsAppService::class)->entryUrl($restaurant);
+        if ($whatsappEntry !== null) {
+            return $whatsappEntry;
+        }
+
         return $this->baseUrl($request).route('outlets.show', $restaurant->slug, false);
     }
 
@@ -52,13 +61,16 @@ class AdminQrController extends Controller
      */
     private function baseUrl(Request $request): string
     {
-        $appUrl = rtrim((string) config('app.url'), '/');
-        $local = ['localhost', '127.0.0.1', '::1', '[::1]'];
-
-        if (in_array(parse_url($appUrl, PHP_URL_HOST), $local, true) && ! in_array($request->getHost(), $local, true)) {
+        $publicUrl = app(\App\Services\PublicUrl::class);
+        $appUrl = $publicUrl->configured();
+        if (! $publicUrl->isLocal($appUrl)) {
+            return $appUrl;
+        }
+        // Admin is browsing via a LAN address or a tunnel: that address is reachable from phones.
+        if (! $publicUrl->isLocal($request->getSchemeAndHttpHost())) {
             return $request->getSchemeAndHttpHost();
         }
 
-        return $appUrl;
+        return $publicUrl->base();
     }
 }

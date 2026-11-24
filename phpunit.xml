@@ -35,6 +35,7 @@
         <!-- Keep tests independent of the developer's local WhatsApp settings. -->
         <!-- The existing Meta suite relies on the forced "meta" provider; Baileys tests set whatsapp.provider themselves. -->
         <env name="APP_URL" value="http://localhost" force="true"/>
+        <env name="CLOUDFLARED_METRICS_URL" value="" force="true"/>
         <env name="WHATSAPP_ENABLED" value="false" force="true"/>
         <env name="WHATSAPP_PROVIDER" value="meta" force="true"/>
         <env name="WHATSAPP_GATEWAY_URL" value="http://127.0.0.1:3100" force="true"/>
