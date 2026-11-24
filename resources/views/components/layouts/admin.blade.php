@@ -10,7 +10,7 @@
     <title>{{ $title ?? 'SatSet Admin' }}</title>
     <link rel="preload" href="{{ asset('fonts/inter-latin-wght.woff2') }}" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="{{ asset('css/admin.css') }}?v=ui-13">
-    <script src="{{ asset('js/admin.js') }}?v=ui-13" defer></script>
+    <script src="{{ asset('js/admin.js') }}?v=ui-14" defer></script>
 </head>
 <body class="admin-body">
     <div class="admin-shell">
